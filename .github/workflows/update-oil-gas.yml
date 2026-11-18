@@ -26,6 +26,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 20      # a normal run takes 3-6 minutes
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -39,6 +40,7 @@ jobs:
       - name: Fetch oil and gas prices and forward curves
         env:
           EIA_API_KEY: ${{ secrets.EIA_API_KEY }}   # optional; adds the official EIA spot prices
+          PYTHONUNBUFFERED: "1"                       # show progress in the log while it runs
         run: |
           if [ "${{ github.event.inputs.full }}" = "yes" ]; then
             python scripts/update_oil_gas.py --full
