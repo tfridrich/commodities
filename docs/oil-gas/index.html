@@ -149,7 +149,7 @@ footer a { color: inherit; }
     <li>Prices are daily closes of the front-month futures contract. When a contract expires the series rolls to the next month, which can cause a step in the line.</li>
     <li>Brent, TTF and NBP are the NYMEX contracts that settle against ICE Brent, ICE Endex TTF and ICE NBP; they track the ICE benchmarks closely but are not ICE's official settlement prices.</li>
     <li>Unit conversion: 1 MWh = 3.412 MMBtu = 34.12 therm. Currencies are converted with the EUR/USD and GBP/USD rate of the same day (or the latest day before it).</li>
-    <li>Forward curves are the daily settlement prices of each NYMEX contract month. Yahoo Finance lists only some of the later months (Brent in particular), and contracts that have expired drop out, so older curves start later. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price.</li>
+    <li>Forward curves are the daily settlement prices of each NYMEX contract month. Yahoo Finance lists only some of the later months (Brent in particular), and contracts that have expired drop out, so older curves start later. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the front-month price from the Crude oil and Natural gas tabs; the flat bars are the actual yearly averages for past years and the Cal strips for the years ahead.</li>
     <li>No forward curve is shown for TTF and NBP: the exchanges that host them (ICE Endex, EEX) license their settlement prices and do not allow automated republication.</li>
     <li>Spot prices marked "EIA" are the US Energy Information Administration's daily spot assessments. They appear once a week, a few days after the trading day.</li>
   </ul>
@@ -451,18 +451,23 @@ footer a { color: inherit; }
   const CURVE_UNITS = { oil: ['USD/bbl', 'EUR/bbl'], gas: ['USD/MMBtu', 'EUR/MWh'] };
   const COMPARE = [
     { key: 'latest', days: 0, label: 'Latest', color: '--s1', width: 2.4 },
-    { key: 'w1', days: 7, label: '1 week earlier', color: '--s2', on: true },
+    { key: 'w1', days: 7, label: '1 week earlier', color: '--s2' },
     { key: 'm1', days: 30, label: '1 month earlier', color: '--s3' },
     { key: 'm3', days: 91, label: '3 months earlier', color: '--s4' },
     { key: 'm6', days: 182, label: '6 months earlier', color: '--s5' },
-    { key: 'y1', days: 365, label: '1 year earlier', color: '--ink-2', dash: '5 3', on: true },
+    { key: 'y1', days: 365, label: '1 year earlier', color: '--ink-2', dash: '5 3' },
+  ];
+  // past prices shown with the curve: front-month history of the price tabs, by curve key
+  const EXTRAS = [
+    { key: 'hist', label: 'History (monthly average, front month)', color: '--ink', dash: '1.5 3.5', width: 2, on: true },
+    { key: 'strips', label: 'Calendar-year averages and Cal strips', color: '--ink', width: 2.4, on: true },
   ];
   const ymDate = (ym) => toDate(ym + '-01');
   const ymLabel = (ym) => d3.utcFormat('%b %Y')(ymDate(ym));
 
-  function curveChart(el, { lines, unit, label }) {
+  function curveChart(el, { lines, unit, label, today }) {
     el.replaceChildren();
-    const pts = lines.flatMap((l) => l.points);
+    const pts = lines.flatMap((l) => l.points).filter((p) => p[1] != null);
     if (!pts.length) { const p = document.createElement('p'); p.className = 'status'; p.textContent = 'No curve for this selection.'; el.append(p); return; }
     const W = Math.max(280, el.clientWidth), H = el.clientWidth < 500 ? 260 : 340;
     const [lo, hi] = d3.extent(pts, (p) => p[1]);
@@ -486,24 +491,31 @@ footer a { color: inherit; }
     for (const l of [...lines].reverse()) {
       const c = css(l.color);
       svg.append('path').datum(l.points).attr('fill', 'none').attr('stroke', c).attr('stroke-width', l.width || 1.6)
-        .attr('stroke-dasharray', l.dash || null).attr('d', d3.line().x((p) => x(p[0])).y((p) => y(p[1])));
-      if (l.points.length <= 40) svg.append('g').selectAll('circle').data(l.points).join('circle').attr('r', l.width ? 3 : 2.2)
+        .attr('stroke-dasharray', l.dash || null).attr('stroke-linecap', l.dash && l.dash.startsWith('1.5') ? 'round' : null)
+        .attr('d', d3.line().defined((p) => p[1] != null).x((p) => x(p[0])).y((p) => y(p[1])));
+      if (!l.noDots && l.points.length <= 40) svg.append('g').selectAll('circle').data(l.points).join('circle').attr('r', l.width ? 3 : 2.2)
         .attr('cx', (p) => x(p[0])).attr('cy', (p) => y(p[1])).attr('fill', c);
+    }
+    if (today && today >= ext[0] && today <= ext[1]) {
+      svg.append('line').attr('x1', x(today)).attr('x2', x(today)).attr('y1', 8).attr('y2', H - 26).attr('stroke', css('--rule')).attr('stroke-width', 1.5);
+      svg.append('text').attr('x', x(today) + 5).attr('y', 18).attr('fill', css('--ink-2')).attr('font-size', 12).text('Today');
     }
     const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; el.append(tip);
     const guide = svg.append('line').attr('y1', 8).attr('y2', H - 26).attr('stroke', css('--ink-2')).attr('stroke-dasharray', '2 3').attr('opacity', 0);
-    const xs = [...new Set(pts.map((p) => p[0].getTime()))].sort((a, b) => a - b);
+    const xs = [...new Set(lines.filter((l) => !l.at).flatMap((l) => l.points).filter((p) => p[1] != null).map((p) => p[0].getTime()))].sort((a, b) => a - b);
     const show = (ev) => {
       const [mx] = d3.pointer(ev, svg.node());
       const t = xs[Math.max(0, Math.min(xs.length - 1, d3.bisectCenter(xs, x.invert(mx).getTime())))];
       guide.attr('x1', x(t)).attr('x2', x(t)).attr('opacity', 1);
       tip.replaceChildren();
-      const d = document.createElement('div'); d.className = 'tip-date'; d.textContent = `Delivery ${d3.utcFormat('%B %Y')(new Date(t))} · ${unit}`; tip.append(d);
+      const past = today && t < today.getTime();
+      const d = document.createElement('div'); d.className = 'tip-date'; d.textContent = `${past ? '' : 'Delivery '}${d3.utcFormat('%B %Y')(new Date(t))} · ${unit}`; tip.append(d);
       const g = document.createElement('div'); g.className = 'tip-grid';
       for (const l of lines) {
-        const p = l.points.find((q) => q[0].getTime() === t);
-        const n = document.createElement('div'); n.append(swatch(l), l.label);
-        const v = document.createElement('div'); v.className = 'v'; v.textContent = p ? fmt(p[1], UNIT_INFO[unit].d) : '—';
+        const p = l.at ? [null, l.at(new Date(t))] : l.points.find((q) => q[0].getTime() === t);
+        if (!p || p[1] == null) continue;
+        const n = document.createElement('div'); n.append(swatch(l), l.tipLabel || l.label);
+        const v = document.createElement('div'); v.className = 'v'; v.textContent = fmt(p[1], UNIT_INFO[unit].d);
         g.append(n, v);
       }
       tip.append(g); tip.hidden = false;
@@ -514,14 +526,15 @@ footer a { color: inherit; }
       .on('pointermove', show).on('pointerdown', show).on('pointerleave', () => { tip.hidden = true; guide.attr('opacity', 0); });
   }
 
-  function setupCurves(panel, cdata, fxRate) {
+  function setupCurves(panel, cdata, fxRate, data) {
     const q = (sel) => panel.querySelector(sel);
     const conv = converter(fxRate);
     const list = Object.entries((cdata && cdata.curves) || {}).filter(([, c]) => Object.keys(c.snapshots || {}).length)
       .map(([key, c]) => ({ key, ...c, dates: Object.keys(c.snapshots).sort() }));
     if (!list.length) { q('[data-lede]').textContent = 'No forward curves yet - they appear after the next update.'; return () => {}; }
     const want = params.get('curve');
-    const st = { key: (list.find((c) => c.key === want) || list[0]).key, unit: null, horizon: '36', on: Object.fromEntries(COMPARE.map((c) => [c.key, c.key === 'latest' || !!c.on])) };
+    const st = { key: (list.find((c) => c.key === want) || list[0]).key, unit: null, horizon: '36', history: '36',
+                 on: Object.fromEntries([...COMPARE, ...EXTRAS].map((c) => [c.key, c.key === 'latest' || !!c.on])) };
     const cur = () => list.find((c) => c.key === st.key);
     const unitSlot = document.createElement('span');
     function pickUnit() {
@@ -531,9 +544,10 @@ footer a { color: inherit; }
     }
     q('[data-controls]').append(
       seg('Benchmark', list.map((c) => [c.key, c.label]), st.key, (v) => { st.key = v; pickUnit(); render(); }),
+      seg('History shown', [['0', 'No history'], ['12', '1 year back'], ['36', '3 years back'], ['60', '5 years back'], ['120', '10 years back']], st.history, (v) => { st.history = v; render(); }),
       seg('Delivery horizon', [['12', '12 months'], ['36', '3 years'], ['72', '6 years'], ['all', 'All']], st.horizon, (v) => { st.horizon = v; render(); }),
       unitSlot);
-    for (const c of COMPARE) {
+    for (const c of [...EXTRAS, ...COMPARE]) {
       const t = document.createElement('button'); t.type = 'button'; t.className = 'toggle'; t.setAttribute('aria-pressed', String(st.on[c.key]));
       t.append(swatch(c), c.label);
       t.addEventListener('click', () => { if (c.key === 'latest') return; st.on[c.key] = !st.on[c.key]; t.setAttribute('aria-pressed', String(st.on[c.key])); render(); });
@@ -570,6 +584,23 @@ footer a { color: inherit; }
       }
       return defs.map((d) => ({ ...d, value: d.months.every((m) => curve[m] != null) ? d3.mean(d.months, (m) => curve[m]) : null }));
     }
+    // monthly and yearly averages of the front-month history from the price tabs, in st.unit
+    function history(c) {
+      const h = data && data.series && data.series[c.key];
+      if (!h) return { months: [], years: {} };
+      const byM = new Map(), byY = new Map();
+      for (const [d, v] of Object.entries(h.data)) {
+        const x = conv(v, h.unit, st.unit, d);
+        if (x == null) continue;
+        if (!byM.has(d.slice(0, 7))) byM.set(d.slice(0, 7), []);
+        byM.get(d.slice(0, 7)).push(x);
+        if (!byY.has(d.slice(0, 4))) byY.set(d.slice(0, 4), []);
+        byY.get(d.slice(0, 4)).push(x);
+      }
+      return { months: [...byM].map(([m, a]) => [m, d3.mean(a)]).sort((a, b) => d3.ascending(a[0], b[0])),
+               years: Object.fromEntries([...byY].map(([y, a]) => [y, d3.mean(a)])), last: Object.keys(h.data).sort().at(-1) };
+    }
+
     function render() {
       const c = cur(), snaps = snapshots(c), U = UNIT_INFO[st.unit];
       const latestDate = snaps.latest, latest = curveIn(c, latestDate);
@@ -593,7 +624,35 @@ footer a { color: inherit; }
         ...cmp, label: cmp.key === 'latest' ? `${d3.utcFormat('%-d %b %Y')(toDate(snaps.latest))}` : `${cmp.label} (${d3.utcFormat('%-d %b %Y')(toDate(snaps[cmp.key]))})`,
         points: Object.entries(curves[cmp.key]).filter(([ym]) => ym <= maxYm).map(([ym, v]) => [ymDate(ym), v]),
       }));
-      if (!panel.hidden) curveChart(q('[data-chart]'), { lines, unit: st.unit, label: `${c.label} forward curve in ${st.unit}` });
+      const H = history(c), today = toDate(latestDate);
+      const histFrom = iso(d3.utcMonth.offset(d3.utcMonth.floor(today), -Number(st.history))).slice(0, 7);
+      const histMonths = st.history === '0' ? [] : H.months.filter(([m]) => m >= histFrom);
+      if (st.on.hist && histMonths.length) {
+        lines.push({ ...EXTRAS[0], noDots: true, tipLabel: 'History (front-month avg)', points: histMonths.map(([m, v]) => [ymDate(m), v]) });
+      }
+      // flat segments: actual yearly average for past years (current year so far), Cal strips ahead
+      const firstHistYear = histMonths.length ? +histMonths[0][0].slice(0, 4) : null;
+      const segs = [];
+      if (firstHistYear) for (const [y, v] of Object.entries(H.years)) {
+        if (+y < firstHistYear || +y > today.getUTCFullYear()) continue;
+        const end = +y === today.getUTCFullYear() ? today : new Date(Date.UTC(+y, 11, 31));
+        segs.push({ from: d3.max([new Date(Date.UTC(+y, 0, 1)), ymDate(histMonths[0][0])]), to: end, v, label: +y === today.getUTCFullYear() ? `${y} so far (actual)` : `${y} (actual)` });
+      }
+      for (const r of stripsOf(c, latest)) {
+        if (!r.label.startsWith('Cal') || r.value == null || r.months[11] > maxYm) continue;
+        segs.push({ from: ymDate(r.months[0]), to: new Date(Date.UTC(+r.months[0].slice(0, 4), 11, 31)), v: r.value, label: `${r.label} strip` });
+      }
+      if (st.on.strips && segs.length) {
+        lines.push({ ...EXTRAS[1], noDots: true, tipLabel: 'Year average / strip',
+          points: segs.flatMap((sg) => [[sg.from, sg.v], [sg.to, sg.v], [sg.to, null]]),
+          at: (t) => { const sg = segs.find((g) => t >= g.from && t <= g.to); return sg ? sg.v : null; } });
+      }
+      if (!panel.hidden) curveChart(q('[data-chart]'), { lines, unit: st.unit, label: `${c.label} forward curve in ${st.unit}`, today: st.history === '0' ? null : today });
+      const ytd = H.years[String(today.getUTCFullYear())], nextCal = stripsOf(c, latest).find((r) => r.label === `Cal-${String(today.getUTCFullYear() + 1).slice(2)}` && r.value != null);
+      if (ytd != null && nextCal) {
+        const pc = (nextCal.value / ytd - 1) * 100;
+        L.append(` The ${nextCal.label} strip (`, b(money(nextCal.value, st.unit)), `) is ${fmt(Math.abs(pc), 1)}% ${pc < 0 ? 'below' : 'above'} the ${today.getUTCFullYear()} average so far (${money(ytd, st.unit)}).`);
+      }
 
       // strips
       const cols = COMPARE.filter((cmp) => snaps[cmp.key]);
@@ -644,7 +703,7 @@ footer a { color: inherit; }
     .then(([data, curves]) => {
       const fxRate = makeFx(data.fx);
       for (const p of document.querySelectorAll('.panel[data-group]')) draws[p.dataset.group] = setupPanel(p, data, fxRate);
-      draws.curves = setupCurves(document.getElementById('panel-curves'), curves, fxRate);
+      draws.curves = setupCurves(document.getElementById('panel-curves'), curves, fxRate, data);
       document.getElementById('updated').textContent = `Data last updated ${d3.utcFormat('%-d %b %Y, %H:%M UTC')(new Date(data.updated))}.`;
       const want = params.get('tab') || location.hash.slice(1);
       selectTab(tabs.find((t) => t.id === 'tab-' + want) || tabs[0]);
