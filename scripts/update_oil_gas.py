@@ -91,20 +91,43 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chr
 
 # ---------------------------------------------------------------- download helpers
 
-def get_json(url, tries=4):
+class SourceBlocked(RuntimeError):
+    """A data source refused several requests in a row - stop asking it for this run."""
+
+
+FAILS_IN_ROW = {}          # host -> consecutive failed requests
+MAX_FAILS_IN_ROW = 6       # then the host is treated as blocking this run
+
+
+def get_json(url, tries=2):
+    """GET a JSON document; one retry after 5 s. 404 is raised at once. When a host has failed
+    MAX_FAILS_IN_ROW requests in a row (e.g. HTTP 429 'Too Many Requests'), SourceBlocked is
+    raised so the run stops quickly instead of retrying for hours."""
+    host = ".".join(urllib.parse.urlsplit(url).hostname.split(".")[-2:])   # e.g. yahoo.com
+    if FAILS_IN_ROW.get(host, 0) >= MAX_FAILS_IN_ROW:
+        raise SourceBlocked(f"{host} is refusing requests in this run - skipped")
     last = None
     for i in range(tries):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                return json.loads(r.read().decode("utf-8"))
+            with urllib.request.urlopen(req, timeout=30) as r:
+                body = json.loads(r.read().decode("utf-8"))
+            FAILS_IN_ROW[host] = 0
+            return body
         except urllib.error.HTTPError as e:
             last = e
-            if e.code in (400, 401, 403, 404):
+            if e.code == 404:
+                FAILS_IN_ROW[host] = 0
                 raise
+            if e.code in (400, 401, 403):
+                break
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
             last = e
-        time.sleep(3 * (i + 1))
+        if i < tries - 1:
+            time.sleep(5)
+    FAILS_IN_ROW[host] = FAILS_IN_ROW.get(host, 0) + 1
+    if FAILS_IN_ROW[host] >= MAX_FAILS_IN_ROW:
+        raise SourceBlocked(f"{host} refused {MAX_FAILS_IN_ROW} requests in a row (last error: {last})")
     raise last
 
 
@@ -151,6 +174,8 @@ def fetch_yahoo(symbol, start, end, missing_ok=False, pause=1.0):
             if data.get("chart", {}).get("error"):
                 raise RuntimeError(data["chart"]["error"])
             return parse_yahoo(data)
+        except SourceBlocked:
+            raise
         except urllib.error.HTTPError as e:
             if e.code == 404 and missing_ok:
                 return {}  # contract month not listed
@@ -241,6 +266,9 @@ def update_curves(today, full=False):
         for ym in months:
             try:
                 got = fetch_yahoo(contract_symbol(c["root"], ym), start, today, missing_ok=True, pause=0.3)
+            except SourceBlocked as e:
+                print(f"::error::Forward curves not updated: {e}. The stored curves are kept.")
+                return False
             except Exception as e:
                 print(f"::warning::{c['key']} {ym}: {e}")
                 got = {}
@@ -259,10 +287,11 @@ def update_curves(today, full=False):
         changed |= merged != snaps or {k: old.get(k) for k in meta} != meta
     if not changed:
         print("No new forward curves - file left unchanged.")
-        return
+        return True
     out["updated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     CURVE_FILE.write_text(json.dumps(out, separators=(",", ":")))
     print(f"Wrote {CURVE_FILE} ({CURVE_FILE.stat().st_size / 1e6:.2f} MB)")
+    return True
 
 
 # ---------------------------------------------------------------- main
@@ -285,13 +314,16 @@ def main():
     ap.add_argument("--no-curves", action="store_true", help="skip the forward curves")
     ap.add_argument("--curves-only", action="store_true", help="only update the forward curves")
     args = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)   # show progress in the GitHub log as it happens
     today = dt.datetime.now(dt.timezone.utc).date()
-    if not args.no_curves:
-        update_curves(today, full=args.full)
-    if args.curves_only:
-        return
+    prices_ok = True if args.curves_only else update_prices(args, today)
+    curves_ok = True if args.no_curves else update_curves(today, full=args.full)
+    if not prices_ok and not curves_ok:
+        sys.exit("Nothing could be fetched - see the messages above.")
 
 
+def update_prices(args, today):
+    """Daily prices for the Crude oil and Natural gas tabs. Returns False if nothing could be fetched."""
     store = load()
     eia_key = os.environ.get("EIA_API_KEY", "").strip()
     failures = []
@@ -346,13 +378,15 @@ def main():
     }
     yahoo_keys = [s["key"] for s in SERIES if s["source"] == "yahoo"] + [f["key"] for f in FX]
     if all(k in failures for k in yahoo_keys):
-        sys.exit("All Yahoo requests failed - nothing new was fetched.")
+        print("::error::Prices not updated: all Yahoo requests failed. The stored prices are kept.")
+        return False
     if all(store.get(k) == out[k] for k in ("series", "fx", "fx_full_history")):
         print("No new prices - file left unchanged.")
-        return
+        return True
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUT_FILE.write_text(json.dumps(out, separators=(",", ":")))
     print(f"Wrote {OUT_FILE} ({OUT_FILE.stat().st_size / 1e6:.2f} MB)")
+    return True
 
 
 if __name__ == "__main__":
