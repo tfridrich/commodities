@@ -1,18 +1,17 @@
 """
 Daily update of copper, iron ore and lithium carbonate prices for the metals page (docs/metals/).
 
-Sources (no API keys needed)
-  - Yahoo Finance chart API: daily closes of US-listed futures
-        Copper     HG=F    USD/lb    COMEX High Grade Copper, front month
-        Iron ore   TIO=F   USD/t     CME/COMEX Iron Ore 62% Fe CFR China (Platts), front month
-    plus the USD/CNY and EUR/USD rates for the unit conversions, and the COMEX copper
-    forward curve from the individual contract months (HGZ26.CMX, HGH27.CMX, ...).
+Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Finance does not)
+  - Sina Finance global futures API: daily closes of the continuous contracts
+        Copper     HG      US cents/lb  COMEX High Grade Copper (stored as USD/lb)
+        Iron ore   FEF     USD/t        SGX iron ore 62% Fe CFR China
   - Sina Finance futures API: daily settlement prices of the Chinese exchanges
         Copper     CU0     CNY/t     SHFE copper, main (most active) contract
         Iron ore   I0      CNY/t     DCE iron ore 62% Fe fines, main contract
         Lithium    LC0     CNY/t     GFEX battery-grade lithium carbonate, main contract
     and their forward curves from the individual contract months (CU2701, I2705, LC2707, ...).
     Chinese futures prices include 13% VAT; the page can show them with or without it.
+  - ECB euro reference rates (USD and CNY per EUR) for the unit conversions.
 
 To add a benchmark, add one entry to SERIES (and CURVES for a forward curve) and, if it is
 a new unit, one line to UNIT_INFO on the page.
@@ -23,8 +22,8 @@ Usage:
     python scripts/update_metals.py --no-curves    # prices only
     python scripts/update_metals.py --curves-only  # forward curves only
 
-Only the Python standard library is used. The Yahoo client and the curve helpers are shared
-with scripts/update_oil_gas.py.
+Only the Python standard library is used. The retry/block logic and the curve helpers are
+shared with scripts/update_oil_gas.py.
 """
 import argparse
 import datetime as dt
@@ -51,27 +50,28 @@ CN_VAT = 0.13
 
 SERIES = [
     # key, group, label, unit, source, id, vat, description
-    dict(key="comex", group="copper", label="COMEX copper", unit="USD/lb", source="yahoo", id="HG=F",
-         desc="COMEX High Grade Copper, nearby futures (the month Yahoo lists as current, usually the most active)"),
+    dict(key="comex", group="copper", label="COMEX copper", unit="USD/lb", source="sina_global", id="HG",
+         scale=0.01, tz="America/New_York", settled_hour=17,
+         desc="COMEX High Grade Copper, continuous nearby futures, daily close"),
     dict(key="shfe", group="copper", label="SHFE copper", unit="CNY/t", source="sina", id="CU0", vat=CN_VAT,
          desc="Shanghai Futures Exchange copper cathode, main contract, settlement price incl. 13% VAT"),
-    dict(key="tio", group="iron", label="Iron ore 62% CFR", unit="USD/t", source="yahoo", id="TIO=F",
-         desc="CME Iron Ore 62% Fe CFR China (Platts), front-month futures, USD per dry tonne; settles on the monthly average of the index"),
+    dict(key="sgx", group="iron", label="SGX iron ore 62%", unit="USD/t", source="sina_global", id="FEF",
+         tz="Asia/Singapore", settled_hour=20,
+         desc="SGX iron ore 62% Fe CFR China futures, continuous nearby contract, daily close, USD per dry tonne"),
     dict(key="dce", group="iron", label="DCE iron ore", unit="CNY/t", source="sina", id="I0", vat=CN_VAT,
          desc="Dalian Commodity Exchange iron ore 62% Fe fines, main contract, settlement price per wet tonne at port, incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", id="LC0", vat=CN_VAT,
          desc="Guangzhou Futures Exchange battery-grade lithium carbonate (99.5% Li2CO3), main contract, settlement price incl. 13% VAT"),
 ]
-# Yahoo FX symbols; stored as USD per unit of the currency (the page expects that)
-FX = [dict(key="EURUSD", id="EURUSD=X", invert=False),
-      dict(key="CNYUSD", id="CNY=X", invert=True)]       # CNY=X is CNY per USD
+# FX stored as USD per unit of the currency (the page expects that), from ECB rates per EUR
+FX_KEYS = ("EURUSD", "CNYUSD")
+FX_START = dt.date(1999, 1, 4)
 
-# Forward curves. Yahoo: root + month code + yy + suffix (HGZ26.CMX). Sina: root + yymm (LC2707).
+# Forward curves. Sina: root + yymm (LC2707). (A Yahoo entry would be root + month code + yy +
+# suffix, e.g. HGZ26.CMX, but Yahoo refuses requests from GitHub Actions, so none is configured.)
 # `monthly` consecutive contract months are requested from `back_months` before today, plus
 # December contracts for `dec_years` years ahead. Months that are not listed are skipped.
 CURVES = [
-    dict(key="comex", group="copper", label="COMEX copper", unit="USD/lb", source="yahoo", root="HG", suffix=".CMX",
-         monthly=26, dec_years=3, desc="COMEX High Grade Copper futures (HG)"),
     dict(key="shfe", group="copper", label="SHFE copper", unit="CNY/t", source="sina", root="CU", vat=CN_VAT,
          monthly=13, dec_years=0, desc="SHFE copper futures (CU), settlement prices incl. 13% VAT"),
     dict(key="dce", group="iron", label="DCE iron ore", unit="CNY/t", source="sina", root="I", vat=CN_VAT,
@@ -84,20 +84,27 @@ CURVE_REFRESH_DAYS = 10
 
 SINA_URL = ("https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_x=/"
             "InnerFuturesNewService.getDailyKLine?symbol={symbol}")
-SINA_HOST = "sina.com.cn"     # key for the consecutive-failure counter
+SINA_GLOBAL_URL = ("https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_x=/"
+                   "GlobalFuturesService.getGlobalFuturesDailyKLine?symbol={symbol}&source=web")
+SINA_HOST = "sina.com.cn"     # keys for the consecutive-failure counter
+ECB_URL = ("https://data-api.ecb.europa.eu/service/data/EXR/D.USD+CNY.EUR.SP00.A"
+           "?format=csvdata&detail=dataonly&startPeriod={start}")
+ECB_HOST = "ecb.europa.eu"
 
 
 # ---------------------------------------------------------------- Sina Finance
 
-def get_text(url, tries=2):
+def get_text(url, tries=2, host=SINA_HOST):
     """GET a text document with the same retry and 'source is blocking' rules as og.get_json."""
-    host = SINA_HOST
     if og.FAILS_IN_ROW.get(host, 0) >= og.MAX_FAILS_IN_ROW:
         raise og.SourceBlocked(f"{host} is refusing requests in this run - skipped")
     last = None
     for i in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": og.UA, "Referer": "https://finance.sina.com.cn/"})
+            headers = {"User-Agent": og.UA}
+            if host == SINA_HOST:
+                headers["Referer"] = "https://finance.sina.com.cn/"
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=30) as r:
                 body = r.read().decode("utf-8", errors="replace")
             og.FAILS_IN_ROW[host] = 0
@@ -128,33 +135,41 @@ def _num(x):
     return v if v > 0 else None
 
 
-def parse_sina(text, now_utc=None):
-    """Sina JSONP -> {date: settlement price}. Contracts that are not listed return `null`.
-    A bar for today is only kept after CN_SETTLED_HOUR Beijing time, and bars dated in the
-    future (the night session is booked to the next trading day) are dropped."""
+def parse_sina(text, now_utc=None, tz=CN_TZ, settled_hour=CN_SETTLED_HOUR, scale=1.0):
+    """Sina JSONP -> {date: price}: the settlement price, else the close (the global futures
+    feed has no settlement). Contracts that are not listed return `null`. A bar for today
+    (in the exchange's time zone) is only kept after `settled_hour`, and bars dated in the
+    future (evening sessions are booked to the next trading day) are dropped."""
     m = re.search(r"var _x=\((\[.*\]|null)\)", text, re.S)
     if not m:
         raise UnexpectedResponse("Sina returned an unexpected page: " + text[:80].replace("\n", " "))
     if m.group(1) == "null":
         return {}
-    now_cn = (now_utc or dt.datetime.now(dt.timezone.utc)).astimezone(CN_TZ)
+    now_ex = (now_utc or dt.datetime.now(dt.timezone.utc)).astimezone(tz)
     out = {}
     for bar in json.loads(m.group(1)):
-        d = bar.get("d")
-        v = _num(bar.get("s")) or _num(bar.get("c"))     # settlement, else close
+        d = bar.get("d") or bar.get("date")
+        v = (_num(bar.get("s")) or _num(bar.get("settlement"))
+             or _num(bar.get("c")) or _num(bar.get("close")))
         if not d or v is None:
             continue
         day = dt.date.fromisoformat(d)
-        if day > now_cn.date() or (day == now_cn.date() and now_cn.hour < CN_SETTLED_HOUR):
+        if day > now_ex.date() or (day == now_ex.date() and now_ex.hour < settled_hour):
             continue
-        out[d] = v
+        out[d] = round(v * scale, 6)
     return out
 
 
-def fetch_sina(symbol, start, pause=0.5):
+def fetch_sina(symbol, start, pause=0.5, spec=None):
+    """Chinese futures by default; with `spec` (a SERIES entry with source "sina_global"),
+    the global futures feed in that exchange's time zone."""
     time.sleep(pause)
+    url, kw = SINA_URL, {}
+    if spec:
+        url = SINA_GLOBAL_URL
+        kw = dict(tz=ZoneInfo(spec["tz"]), settled_hour=spec["settled_hour"], scale=spec.get("scale", 1.0))
     try:
-        got = parse_sina(get_text(SINA_URL.format(symbol=urllib.parse.quote(symbol))))
+        got = parse_sina(get_text(url.format(symbol=urllib.parse.quote(symbol))), **kw)
     except UnexpectedResponse:
         # count it like a refused request, so a blocked source stops the run quickly
         og.FAILS_IN_ROW[SINA_HOST] = og.FAILS_IN_ROW.get(SINA_HOST, 0) + 1
@@ -162,6 +177,30 @@ def fetch_sina(symbol, start, pause=0.5):
             raise og.SourceBlocked(f"{SINA_HOST} returned {og.MAX_FAILS_IN_ROW} unexpected pages in a row")
         raise
     return {d: v for d, v in got.items() if d >= start.isoformat()}
+
+
+# ---------------------------------------------------------------- ECB exchange rates
+
+def parse_ecb(text):
+    """ECB CSV (USD and CNY per EUR) -> {"EURUSD": {date: USD per EUR}, "CNYUSD": {date: USD per CNY}}."""
+    lines = text.strip().splitlines()
+    if not lines or not lines[0].startswith("KEY,"):
+        raise UnexpectedResponse("ECB returned an unexpected page: " + text[:80].replace("\n", " "))
+    head = lines[0].split(",")
+    i_ccy, i_day, i_val = head.index("CURRENCY"), head.index("TIME_PERIOD"), head.index("OBS_VALUE")
+    per_eur = {"USD": {}, "CNY": {}}
+    for line in lines[1:]:
+        f = line.split(",")
+        v = _num(f[i_val]) if len(f) > i_val else None
+        if v is not None and f[i_ccy] in per_eur:
+            per_eur[f[i_ccy]][f[i_day]] = v
+    usd = per_eur["USD"]
+    return {"EURUSD": {d: round(v, 6) for d, v in usd.items()},
+            "CNYUSD": {d: round(usd[d] / v, 6) for d, v in per_eur["CNY"].items() if d in usd}}
+
+
+def fetch_ecb(start):
+    return parse_ecb(get_text(ECB_URL.format(start=start.isoformat()), host=ECB_HOST))
 
 
 # ---------------------------------------------------------------- prices
@@ -183,7 +222,12 @@ def update_prices(args, today):
             meta["vat"] = s["vat"]
         start = start_for(old.get("data"), old.get("full_history", False))
         try:
-            got = og.fetch_yahoo(s["id"], start, today) if s["source"] == "yahoo" else fetch_sina(s["id"], start)
+            if s["source"] == "yahoo":
+                got = og.fetch_yahoo(s["id"], start, today)
+            elif s["source"] == "sina_global":
+                got = fetch_sina(s["id"], start, spec=s)
+            else:
+                got = fetch_sina(s["id"], start)
             print(f"{s['key']:<8} {len(got):>5} days from {start}  ({s['source']} {s['id']})")
         except Exception as e:
             print(f"::warning::{s['key']}: {e}")
@@ -192,26 +236,29 @@ def update_prices(args, today):
         full = old.get("full_history", False) or (bool(got) and start == HISTORY_START)
         new_series[s["key"]] = {**meta, "full_history": full, "data": og.merge(old.get("data"), got, 4)}
 
-    new_fx, fx_full = {}, set(store.get("fx_full_history", []))
-    for f in FX:
-        old = store.get("fx", {}).get(f["key"], {})
-        start = start_for(old, f["key"] in fx_full)
-        try:
-            got = og.fetch_yahoo(f["id"], start, today)
-            if f["invert"]:
-                got = {d: 1 / v for d, v in got.items() if v}
-            print(f"{f['key']:<8} {len(got):>5} days from {start}  (yahoo {f['id']})")
-        except Exception as e:
-            print(f"::warning::{f['key']}: {e}")
-            failures.append(f["key"])
-            got = {}
-        if got and start == HISTORY_START:
-            fx_full.add(f["key"])
-        new_fx[f["key"]] = og.merge(old, got, 6)
+    # one ECB request covers both rates; the full history is fetched until it has succeeded once
+    old_fx = store.get("fx", {})
+    fx_full = set(store.get("fx_full_history", []))
+    fx_done = all(k in fx_full for k in FX_KEYS)
+    fx_start = FX_START if args.full or not fx_done or not all(old_fx.get(k) for k in FX_KEYS) else \
+        dt.date.fromisoformat(min(max(old_fx[k]) for k in FX_KEYS)) - dt.timedelta(days=REFRESH_DAYS)
+    try:
+        got_fx = fetch_ecb(fx_start)
+        print("FX       " + ", ".join(f"{k} {len(v)} days" for k, v in got_fx.items()) + f" from {fx_start}  (ECB)")
+    except Exception as e:
+        print(f"::warning::FX (ECB): {e}")
+        failures.extend(FX_KEYS)
+        got_fx = {}
+    new_fx = {}
+    for k in FX_KEYS:
+        got = got_fx.get(k, {})
+        if got and fx_start == FX_START:
+            fx_full.add(k)
+        new_fx[k] = og.merge(old_fx.get(k), got, 6)
 
     out = {"updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
            "series": new_series, "fx": new_fx, "fx_full_history": sorted(fx_full)}
-    if len(failures) == len(SERIES) + len(FX):
+    if len(failures) == len(SERIES) + len(FX_KEYS):
         print("::error::Prices not updated: every request failed. The stored prices are kept.")
         return False
     if all(store.get(k) == out[k] for k in ("series", "fx", "fx_full_history")):
