@@ -49,6 +49,14 @@ import urllib.request
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+# Use the operating system's certificate store when the optional 'truststore' package is
+# installed (fixes "CERTIFICATE_VERIFY_FAILED" with Anaconda on Windows, e.g. for the ECB).
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 OUT_FILE = Path(__file__).resolve().parent.parent / "docs" / "data" / "oil_gas.json"
 HISTORY_START = dt.date(2000, 1, 1)
 REFRESH_DAYS = 7      # re-read the last week when a series is fetched, to pick up late corrections
