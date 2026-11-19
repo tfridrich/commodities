@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battery storage revenues · Austria and Germany</title>
+<meta name="description" content="Indicative stacked revenues of a 1, 2 and 4-hour battery in Austria and Germany from day-ahead arbitrage, FCR and aFRR, recalculated every day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --bg: #F3F6F7;
+  --surface: #FFFFFF;
+  --ink: #15212B;
+  --ink-2: #51606B;
+  --rule: #D5DDE1;
+  --grid: #E4EAED;
+  --tb1: #0A6C93;
+  --tb2: #B2741A;
+  --tb3: #3D8A55;
+  --tb4: #6A4C9C;
+  --focus: #0A6C93;
+  --gutter: 16px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101820; --surface: #16212B; --ink: #E7EDF0; --ink-2: #9AAAB5; --rule: #2A3945; --grid: #22303B;
+    --tb1: #4DB3DB; --tb2: #E2A54A; --tb3: #6CC487; --tb4: #A98EE0; --focus: #4DB3DB; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101820; --surface: #16212B; --ink: #E7EDF0; --ink-2: #9AAAB5; --rule: #2A3945; --grid: #22303B;
+  --tb1: #4DB3DB; --tb2: #E2A54A; --tb3: #6CC487; --tb4: #A98EE0; --focus: #4DB3DB; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 40px var(--gutter) 56px; }
+h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; font-weight: 640; font-stretch: 118%; letter-spacing: -0.01em; margin: 0 0 14px; max-width: 18ch; }
+h2 { font-size: 21px; line-height: 1.25; font-weight: 620; font-stretch: 110%; margin: 0 0 4px; }
+.lede { font-size: 18px; color: var(--ink-2); max-width: 62ch; margin: 0; }
+.lede b { color: var(--ink); font-weight: 600; }
+.sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; max-width: 70ch; }
+section { margin-top: 44px; }
+.hero { margin-top: 28px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { font: inherit; font-size: 14px; font-stretch: 100%; background: transparent; color: var(--ink-2); border: 0; padding: 6px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.chart { position: relative; min-height: 360px; }
+.chart svg { display: block; }
+.chart .tick text { fill: var(--ink-2); font-size: 12px; font-family: inherit; }
+.chart .tick line { stroke: var(--grid); }
+.chart .domain { stroke: var(--rule); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; color: var(--ink-2); padding: 8px 0 4px; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend svg line { stroke-width: 2.5; }
+.toggle { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 11px 3px 9px; display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
+.toggle[aria-pressed="false"] { color: var(--ink-2); background: transparent; border-style: dashed; }
+.toggle[aria-pressed="false"] .sw { opacity: .25; }
+.tip { position: absolute; top: 8px; pointer-events: none; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); padding: 8px 10px; font-size: 13px; white-space: nowrap; z-index: 2; }
+.tip-date { color: var(--ink-2); margin-bottom: 4px; }
+.tip-grid { display: grid; grid-template-columns: auto auto auto; gap: 1px 14px; }
+.tip-grid .h { color: var(--ink-2); text-align: right; }
+.tip-grid .v { text-align: right; }
+.sw { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.latest { display: grid; grid-template-columns: minmax(150px, 1.2fr) repeat(4, minmax(80px, 1fr)); border-top: 2px solid var(--ink); }
+.latest > div { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--rule); }
+.latest .colh { font-size: 14px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+.latest .mkt { font-weight: 600; }
+.latest .mkt .short { display: none; }
+.latest .mkt small { display: block; font-weight: 400; color: var(--ink-2); font-size: 13px; }
+.latest .num { font-size: clamp(22px, 3.4vw, 32px); font-weight: 560; font-stretch: 104%; line-height: 1.1; }
+.latest .num small { display: block; font-size: 13px; font-weight: 400; color: var(--ink-2); font-stretch: 100%; margin-top: 2px; }
+.table-wrap { overflow-x: auto; }
+.table-scroll { max-height: 420px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+thead th { color: var(--ink-2); font-weight: 500; background: var(--bg); position: sticky; top: 0; }
+thead tr:first-child th { border-bottom: 0; padding-bottom: 0; color: var(--ink); font-weight: 600; }
+th.grp { text-align: center; border-bottom: 1px solid var(--rule) !important; }
+td.sep, th.sep { border-left: 1px solid var(--rule); }
+.two { display: block; }
+.range { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; margin-bottom: 14px; }
+.range label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.range input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; }
+.range .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.range .presets button { font: inherit; font-size: 13px; background: transparent; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink-2); padding: 6px 10px; cursor: pointer; }
+.tabs { display: flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tabs button { font: inherit; font-size: 15px; font-weight: 520; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); padding: 8px 14px 9px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.panel > .lede { margin-top: 22px; }
+.panel .hero h2 { margin-bottom: 2px; }
+section.first { margin-top: 28px; }
+.picker { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: end; margin-bottom: 16px; }
+.picker label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.picker select, .picker input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; }
+.picker .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker .presets button { font: inherit; font-size: 13px; background: transparent; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink-2); padding: 6px 10px; cursor: pointer; }
+.picker .note { font-size: 13px; color: var(--ink-2); align-self: center; }
+.heat canvas { display: block; width: 100%; }
+.colorbar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+.colorbar canvas { width: 220px; height: 10px; border-radius: 2px; }
+.notes { color: var(--ink-2); font-size: 14px; padding-left: 18px; max-width: 80ch; margin-top: 36px; }
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 14px; }
+footer ul { padding-left: 18px; max-width: 80ch; }
+footer a { color: inherit; }
+.status { color: var(--ink-2); padding: 40px 0; }
+.compact .wrap { padding-top: 12px; padding-bottom: 12px; }
+.compact .full { display: none; }
+@media (max-width: 560px) {
+  .wrap { padding-top: 24px; }
+  .latest { grid-template-columns: minmax(78px, 1.1fr) repeat(4, minmax(0, 1fr)); }
+  .latest > div { padding-right: 4px; min-width: 0; }
+  .latest .num { font-size: 19px; }
+  .latest .num small { font-size: 11px; }
+  .latest .mkt { font-size: 14px; }
+  .latest .mkt .long { display: none; }
+  .latest .mkt .short { display: inline; }
+  .hero { padding: 12px 10px 8px; }
+}
+
+:root { --c-id: #B03A48; --c-da: #0A6C93; --c-up: #B2741A; --c-dn: #6A4C9C; --c-fcr: #3D8A55; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --c-id: #D9606F; --c-da: #3197C0; --c-up: #C2862C; --c-dn: #9C82D6; --c-fcr: #4FA36B; }
+}
+:root[data-theme="dark"] { --c-id: #D9606F; --c-da: #3197C0; --c-up: #C2862C; --c-dn: #9C82D6; --c-fcr: #4FA36B; }
+.back { display: inline-block; font-size: 14px; color: var(--ink-2); margin-bottom: 10px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; border-top: 2px solid var(--ink); }
+.kpis > div { padding: 10px 12px 12px 0; border-bottom: 1px solid var(--rule); }
+.kpis .lbl { font-size: 14px; color: var(--ink-2); }
+.kpis .num { font-size: clamp(24px, 3.4vw, 34px); font-weight: 560; font-stretch: 104%; line-height: 1.15; }
+.kpis .num small { font-size: 14px; font-weight: 400; color: var(--ink-2); }
+.kpis .sub2 { font-size: 13px; color: var(--ink-2); }
+.haircut { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: end; margin: 4px 0 10px; font-size: 14px; color: var(--ink-2); }
+.haircut label { display: flex; flex-direction: column; gap: 3px; }
+.haircut input { font: inherit; width: 84px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 7px; }
+.ctl-label { font-size: 13px; color: var(--ink-2); margin-right: -10px; }
+.legend .ln svg line { stroke: var(--ink-2); stroke-width: 2; }
+td.tot, th.tot { font-weight: 600; }
+.method { max-width: 80ch; font-size: 15px; }
+.method h3 { font-size: 16px; margin: 22px 0 4px; }
+.method ul { padding-left: 18px; }
+.method li { margin: 3px 0; }
+.method a { color: inherit; }
+.note-flag { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back full" href="../">← Day-ahead and balancing prices</a>
+    <h1>Battery storage revenues, Austria and Germany</h1>
+    <p class="lede" id="lede">Loading…</p>
+  </header>
+
+  <div class="hero">
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Market" id="seg-zone">
+        <button type="button" data-v="DE_LU" aria-pressed="true">Germany</button>
+        <button type="button" data-v="AT" aria-pressed="false">Austria</button>
+      </div>
+      <div class="seg" role="group" aria-label="Battery duration" id="seg-dur">
+        <button type="button" data-v="1h" aria-pressed="false">1 h</button>
+        <button type="button" data-v="2h" aria-pressed="true">2 h</button>
+        <button type="button" data-v="4h" aria-pressed="false">4 h</button>
+      </div>
+      <div class="seg" role="group" aria-label="Resolution" id="seg-gran">
+        <button type="button" data-v="daily" aria-pressed="false">Daily</button>
+        <button type="button" data-v="weekly" aria-pressed="false">Weekly</button>
+        <button type="button" data-v="monthly" aria-pressed="true">Monthly</button>
+        <button type="button" data-v="yearly" aria-pressed="false">Yearly</button>
+      </div>
+      <div class="seg" role="group" aria-label="Time range" id="seg-range">
+        <button type="button" data-v="90" aria-pressed="false">90 days</button>
+        <button type="button" data-v="365" aria-pressed="false">1 year</button>
+        <button type="button" data-v="since2024" aria-pressed="true">Since 2024</button>
+        <button type="button" data-v="all" aria-pressed="false">All (DA from 2019)</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Units" id="seg-unit">
+        <button type="button" data-v="ann" aria-pressed="true">k€/MW/year</button>
+        <button type="button" data-v="abs" aria-pressed="false">€/MW per period</button>
+      </div>
+      <div class="seg" role="group" aria-label="Realism" id="seg-real">
+        <button type="button" data-v="perfect" aria-pressed="true">Perfect hindsight</button>
+        <button type="button" data-v="haircut" aria-pressed="false">With capture rates</button>
+      </div>
+    </div>
+    <div class="haircut" id="haircut" hidden>
+      <label>Day-ahead captured <input type="number" id="h-da" min="0" max="100" step="5" value="85"></label>
+      <label>Intraday captured <input type="number" id="h-id" min="0" max="100" step="5" value="50"></label>
+      <label>FCR / aFRR bids won <input type="number" id="h-cap" min="0" max="100" step="5" value="65"></label>
+      <span>Each part of the revenue is scaled by these shares (%).</span>
+    </div>
+    <div class="chart" id="chart"><p class="status">Loading…</p></div>
+    <div class="legend" id="legend"></div>
+    <p class="note-flag" id="chart-note"></p>
+  </div>
+
+  <section>
+    <h2 id="kpi-title">Headline figures</h2>
+    <p class="sub">Optimised stack, annualised in thousand euros per MW of power. Day-ahead only in brackets.</p>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="full">
+    <h2 id="tbl-title">Revenues per period</h2>
+    <p class="sub" id="tbl-sub"></p>
+    <div class="table-wrap table-scroll"><table id="periods"></table></div>
+  </section>
+
+  <section class="full">
+    <h2>Austria and Germany side by side</h2>
+    <p class="sub" id="cmp-sub">Optimised stack per year, k€/MW/year. Day-ahead only in brackets. Balancing data starts in January 2024.</p>
+    <div class="table-wrap"><table id="compare"></table></div>
+  </section>
+
+  <section class="full method">
+    <h2>How the figures are calculated</h2>
+    <p>For every delivery day a linear program schedules a 1&nbsp;MW battery with 1, 2 or 4&nbsp;MWh of storage, knowing all of that day's prices in advance. The results are therefore an upper bound of what a well-run battery could have earned; real operators earn less because they trade on forecasts and do not win every balancing bid. The "with capture rates" switch scales each revenue part down to a realistic share.</p>
+    <h3>Strategies</h3>
+    <ul>
+      <li><b>Day-ahead only</b>: arbitrage on the SDAC day-ahead auction (hourly products until September 2025, 15-minute products since 1 October 2025).</li>
+      <li><b>FCR only</b> and <b>aFRR only</b>: the battery offers as much FCR, or as much aFRR up and down capacity, as its power and energy allow, at the published average capacity price.</li>
+      <li><b>Optimised stack</b>: FCR, aFRR up and aFRR down are chosen per 4-hour block together with day-ahead trading. The remaining power and state of charge are used for arbitrage, and enough energy is held back to deliver the reserved capacity.</li>
+      <li><b>Intraday</b> (Germany, shown when available): after the day-ahead and balancing positions are fixed, the schedule is re-traded against the quarter-hourly ID-AEP index from Netztransparenz, a price index of continuous intraday trading. Austria has no published intraday price, so its intraday revenues are not estimated.</li>
+    </ul>
+    <h3>Battery assumptions</h3>
+    <ul id="assumptions"></ul>
+    <h3>What is not included</h3>
+    <ul>
+      <li>aFRR activation (energy) revenues: they depend on activation volumes per bid, which are not published per unit. The battery is assumed to be energy-neutral during activations.</li>
+      <li>Market depth: every bid is assumed to be accepted at the average capacity price, as if the battery were too small to move the price. The German aFRR market procures roughly 2&nbsp;GW per direction and the Austrian one far less, so a growing battery fleet pushes these prices down.</li>
+      <li>Grid fees, balancing group costs, marketing (route-to-market) fees, degradation beyond a small wear cost of 1&nbsp;€/MWh, and outages.</li>
+      <li>Before 2024 only the day-ahead strategy is shown, because the balancing price history on this site starts in January 2024.</li>
+    </ul>
+    <h3>Published benchmarks to compare with</h3>
+    <ul>
+      <li><a href="https://battery-charts.de/revenue-index/">battery-charts.de revenue index</a> (Germany)</li>
+      <li><a href="https://www.batterydata.info/">batterydata.info</a></li>
+      <li><a href="https://www.cleanhorizon.com/battery-index/#index">Clean Horizon battery index</a></li>
+      <li>Monthly indices from suena, enervis, Aurora, enspired and Modo Energy (some by subscription).</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p id="updated"></p>
+    <p class="full">Prices from the <a href="https://transparency.entsoe.eu/">ENTSO-E Transparency Platform</a> (SDAC day-ahead prices, contracted FCR and aFRR capacity prices of the Austrian and German grid operators) and, for German intraday, <a href="https://www.netztransparenz.de/">Netztransparenz.de</a>. Indicative model results, not investment advice.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('view') === 'compact') document.documentElement.classList.add('compact');
+  if (params.get('theme') === 'light' || params.get('theme') === 'dark') document.documentElement.dataset.theme = params.get('theme');
+
+  const ZONES = { DE_LU: 'Germany', AT: 'Austria' };
+  // stack order bottom -> top (validated palette order)
+  const PARTS = [
+    { k: 'id', name: 'Intraday', c: '--c-id', h: 'id' },
+    { k: 'da', name: 'Day-ahead', c: '--c-da', h: 'da' },
+    { k: 'up', name: 'aFRR up', c: '--c-up', h: 'cap' },
+    { k: 'dn', name: 'aFRR down', c: '--c-dn', h: 'cap' },
+    { k: 'fcr', name: 'FCR', c: '--c-fcr', h: 'cap' },
+  ];
+  const LINES = [
+    { k: 'daOnly', name: 'Day-ahead only', dash: null, h: 'da' },
+    { k: 'fcrOnly', name: 'FCR only', dash: '6 4', h: 'cap' },
+    { k: 'afrrOnly', name: 'aFRR only', dash: '1.5 3', h: 'cap' },
+  ];
+  const state = { zone: params.get('zone') === 'AT' ? 'AT' : 'DE_LU', dur: '2h', gran: 'monthly', range: 'since2024', unit: 'ann', real: 'perfect',
+    on: { daOnly: true, fcrOnly: false, afrrOnly: false } };
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const toDate = (s) => new Date(s + 'T00:00:00Z');
+  const f0 = d3.format(',.0f'), f1 = d3.format(',.1f');
+  let DATA = null;
+
+  const hc = () => state.real === 'perfect' ? { da: 1, id: 1, cap: 1 } : {
+    da: (+document.getElementById('h-da').value || 0) / 100,
+    id: (+document.getElementById('h-id').value || 0) / 100,
+    cap: (+document.getElementById('h-cap').value || 0) / 100 };
+
+  // ---- daily rows -> objects with haircut applied
+  function days(zone, dur) {
+    const C = DATA.columns, h = hc();
+    return DATA.markets[zone][dur].map((r) => {
+      const o = Object.fromEntries(C.map((c, i) => [c, r[i]]));
+      const hasStack = o.stack_da != null;
+      const hasId = o.id_stack != null;
+      return {
+        date: o.date,
+        daOnly: o.da == null ? null : o.da * h.da + (o.id_merchant ?? 0) * h.id,
+        fcrOnly: o.fcr == null ? null : o.fcr * h.cap,
+        afrrOnly: o.afrr == null ? null : o.afrr * h.cap,
+        da: hasStack ? o.stack_da * h.da : null,
+        id: hasStack ? (hasId ? o.id_stack * h.id : 0) : null,
+        up: hasStack ? o.stack_afrr_up * h.cap : null,
+        dn: hasStack ? o.stack_afrr_down * h.cap : null,
+        fcr: hasStack ? o.stack_fcr * h.cap : null,
+        cycDa: o.cycles_da, cycSt: o.cycles_stack, hasId,
+      };
+    });
+  }
+  const weekOf = (s) => { const t = toDate(s); return new Date(t.getTime() - ((t.getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10); };
+  const KEYFN = { daily: (s) => s, weekly: weekOf, monthly: (s) => s.slice(0, 7), yearly: (s) => s.slice(0, 4) };
+  const PARSE = { daily: toDate, weekly: toDate, monthly: (k) => toDate(k + '-01'), yearly: (k) => toDate(k + '-01-01') };
+  const SERIES_KEYS = ['daOnly', 'fcrOnly', 'afrrOnly', 'da', 'id', 'up', 'dn', 'fcr', 'cycDa', 'cycSt'];
+
+  // aggregate: sum and count per series; value = sum (abs) or sum/count*365/1000 (ann)
+  function aggregate(rows, gran) {
+    const m = new Map();
+    for (const r of rows) {
+      const k = KEYFN[gran](r.date);
+      if (!m.has(k)) m.set(k, { key: k, days: 0, s: {}, n: {}, anyId: false });
+      const g = m.get(k); g.days++; g.anyId = g.anyId || r.hasId;
+      for (const s of SERIES_KEYS) if (r[s] != null) { g.s[s] = (g.s[s] || 0) + r[s]; g.n[s] = (g.n[s] || 0) + 1; }
+    }
+    return [...m.values()].sort((a, b) => (a.key < b.key ? -1 : 1));
+  }
+  function val(g, s) {
+    if (!g.n[s]) return null;
+    if (s.startsWith('cyc')) return g.s[s] / g.n[s];
+    return state.unit === 'ann' ? g.s[s] / g.n[s] * 365 / 1000 : g.s[s];
+  }
+  const stackTotal = (g) => (g.n.da ? PARTS.reduce((a, p) => a + (val(g, p.k) || 0), 0) : null);
+  const ann = (g, s) => (g.n[s] ? g.s[s] / g.n[s] * 365 / 1000 : null);
+  const annStack = (g) => (g.n.da ? PARTS.reduce((a, p) => a + (ann(g, p.k) || 0), 0) : null);
+  const unitLabel = () => (state.unit === 'ann' ? 'k€/MW/year' : '€/MW');
+  const fmtV = (v) => (v == null ? '—' : state.unit === 'ann' ? f0(v) : (Math.abs(v) >= 1000 ? f0(v) : f1(v)));
+
+  function inRange(groups) {
+    if (state.range === 'all') return groups;
+    const last = groups.length ? PARSE[state.gran](groups[groups.length - 1].key) : null;
+    if (state.range === 'since2024') return groups.filter((g) => g.key >= '2024');
+    const cut = last.getTime() - Number(state.range) * 86400000;
+    return groups.filter((g) => PARSE[state.gran](g.key).getTime() >= cut);
+  }
+
+  // ---------------------------------------------------------------- chart
+  function drawChart() {
+    const el = document.getElementById('chart'); el.replaceChildren();
+    const groups = inRange(aggregate(days(state.zone, state.dur), state.gran));
+    const rows = groups.map((g) => ({ g, x: PARSE[state.gran](g.key) }));
+    const showId = groups.some((g) => g.anyId);
+    const parts = PARTS.filter((p) => p.k !== 'id' || showId);
+    const W = Math.max(280, el.clientWidth), H = el.clientWidth < 500 ? 340 : 380, B = H - 26;
+    const activeLines = LINES.filter((l) => state.on[l.k]);
+    const ymax = d3.max(rows, (r) => Math.max(stackTotal(r.g) || 0, ...activeLines.map((l) => val(r.g, l.k) || 0))) || 1;
+    const y = d3.scaleLinear().domain([0, ymax * 1.06]).nice().range([B, 8]);
+    const svg = d3.select(el).append('svg').attr('width', W).attr('height', H).attr('role', 'img')
+      .attr('aria-label', `${state.gran} battery revenues for ${ZONES[state.zone]}, ${state.dur} battery, in ${unitLabel()}`);
+    const yAxis = svg.append('g').call(d3.axisLeft(y).ticks(6).tickSize(0).tickFormat(d3.format(',.0f')));
+    let ml = 0; yAxis.selectAll('text').each(function () { ml = Math.max(ml, this.getComputedTextLength()); });
+    ml = Math.ceil(ml) + 10;
+    yAxis.attr('transform', `translate(${ml},0)`).select('.domain').remove();
+    svg.insert('g', ':first-child').attr('transform', `translate(${ml},0)`)
+      .call(d3.axisLeft(y).ticks(6).tickSize(-(W - ml - 6)).tickFormat('')).call((g) => g.select('.domain').remove());
+
+    // band-like time scale: each period occupies [start, next start)
+    const next = (d) => ({ daily: d3.utcDay, weekly: d3.utcWeek, monthly: d3.utcMonth, yearly: d3.utcYear }[state.gran].offset(d, 1));
+    const ext = [rows[0].x, next(rows[rows.length - 1].x)];
+    const x = d3.scaleUtc().domain(ext).range([ml + 4, W - 8]);
+    const spanDays = (ext[1] - ext[0]) / 86400000, spanYears = spanDays / 365.25;
+    const room = Math.max(2, Math.floor((W - ml) / 80));
+    let ticks, tf;
+    if (state.gran === 'yearly') { ticks = d3.utcYear.every(Math.max(1, Math.ceil(rows.length / room))); tf = d3.utcFormat('%Y'); }
+    else if (spanDays <= 75) { ticks = d3.utcWeek.every(Math.max(1, Math.ceil(spanDays / 7 / room))); tf = d3.utcFormat('%-d %b'); }
+    else if (spanYears > 2.5) { ticks = d3.utcYear.every(Math.max(1, Math.ceil((spanYears + 1) / room))); tf = d3.utcFormat('%Y'); }
+    else { const mo = Math.round(spanYears * 12); ticks = d3.utcMonth.every([1, 2, 3, 6, 12].find((k) => mo / k <= room) || 12); tf = d3.utcFormat('%b %y'); }
+    svg.append('g').attr('transform', `translate(0,${B})`).call(d3.axisBottom(x).ticks(ticks).tickSizeOuter(0).tickFormat(tf));
+
+    const bw = (r) => x(next(r.x)) - x(r.x);
+    const pad = (r) => (bw(r) > 6 ? Math.min(bw(r) * 0.18, 10) : bw(r) > 2.5 ? 0.5 : 0);
+    const gap = rows.length && bw(rows[0]) > 8 ? 2 : 0; // surface gap between stacked segments
+    const surface = css('--surface');
+    const barG = svg.append('g');
+    for (const r of rows) {
+      if (!r.g.n.da) continue;
+      let acc = 0;
+      const segs = parts.map((p) => { const v = Math.max(0, val(r.g, p.k) || 0); const s = { p, y0: acc, y1: acc + v }; acc += v; return s; }).filter((s) => s.y1 > s.y0);
+      segs.forEach((s, i) => {
+        const top = i === segs.length - 1;
+        const x0 = x(r.x) + pad(r), w = Math.max(0.6, bw(r) - 2 * pad(r));
+        const yTop = y(s.y1) + (top ? 0 : gap / 2), yBot = y(s.y0) - (i === 0 ? 0 : gap / 2);
+        const hgt = Math.max(0, yBot - yTop);
+        if (top && w >= 8 && hgt > 4) {
+          const rad = 4;
+          barG.append('path').attr('fill', css(s.p.c)).attr('d',
+            `M${x0},${yBot}V${yTop + rad}Q${x0},${yTop} ${x0 + rad},${yTop}H${x0 + w - rad}Q${x0 + w},${yTop} ${x0 + w},${yTop + rad}V${yBot}Z`);
+        } else {
+          barG.append('rect').attr('x', x0).attr('y', yTop).attr('width', w).attr('height', hgt).attr('fill', css(s.p.c));
+        }
+      });
+    }
+    // comparison lines (step-centred on each period)
+    for (const l of activeLines) {
+      const pts = rows.filter((r) => val(r.g, l.k) != null).map((r) => [x(r.x) + bw(r) / 2, y(val(r.g, l.k))]);
+      svg.append('path').attr('fill', 'none').attr('stroke', surface).attr('stroke-width', 4).attr('d', d3.line()(pts));
+      svg.append('path').attr('fill', 'none').attr('stroke', css('--ink')).attr('stroke-width', state.gran === 'daily' ? 1.2 : 2)
+        .attr('stroke-dasharray', l.dash).attr('d', d3.line()(pts));
+      if (pts.length <= 40 && !l.dash) svg.append('g').selectAll('circle').data(pts).join('circle').attr('r', 3.2)
+        .attr('cx', (p) => p[0]).attr('cy', (p) => p[1]).attr('fill', css('--ink')).attr('stroke', surface).attr('stroke-width', 1.5);
+    }
+
+    // tooltip
+    const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; el.append(tip);
+    const hl = svg.append('rect').attr('y', 8).attr('height', B - 8).attr('fill', css('--ink')).attr('opacity', 0).attr('pointer-events', 'none');
+    const lbl = { daily: d3.utcFormat('%a %-d %b %Y'), weekly: (d) => 'Week of ' + d3.utcFormat('%-d %b %Y')(d), monthly: d3.utcFormat('%B %Y'), yearly: d3.utcFormat('%Y') }[state.gran];
+    const show = (ev) => {
+      const [mx] = d3.pointer(ev, svg.node());
+      const t = x.invert(mx);
+      const r = rows.find((q) => t >= q.x && t < next(q.x)) || rows[rows.length - 1];
+      hl.attr('x', x(r.x)).attr('width', Math.max(1, bw(r))).attr('opacity', 0.06);
+      tip.replaceChildren();
+      const d = document.createElement('div'); d.className = 'tip-date';
+      d.textContent = `${lbl(r.x)} · ${unitLabel()}${r.g.days > 1 ? ` · ${r.g.days} days` : ''}`; tip.append(d);
+      const g = document.createElement('div'); g.className = 'tip-grid'; g.style.gridTemplateColumns = 'auto auto';
+      const row = (name, v, sw, bold) => {
+        const a = document.createElement('div');
+        if (sw) { const i = document.createElement('i'); i.className = 'sw'; i.style.background = `var(${sw})`; a.append(i); }
+        a.append(document.createTextNode(name)); if (bold) a.style.fontWeight = 600;
+        const b = document.createElement('div'); b.className = 'v'; b.textContent = fmtV(v); if (bold) b.style.fontWeight = 600;
+        g.append(a, b);
+      };
+      if (r.g.n.da) {
+        row('Optimised stack', stackTotal(r.g), null, true);
+        [...parts].reverse().forEach((p) => row(p.name, val(r.g, p.k), p.c));
+      }
+      LINES.forEach((l) => row(l.name, val(r.g, l.k)));
+      const cy = document.createElement('div'); cy.className = 'tip-date'; cy.style.marginTop = '4px';
+      cy.textContent = `Cycles/day: ${f1(val(r.g, 'cycDa') ?? NaN)} day-ahead only${r.g.n.cycSt ? `, ${f1(val(r.g, 'cycSt'))} stack` : ''}`;
+      tip.append(g, cy); tip.hidden = false;
+      const tw = tip.offsetWidth, px = x(r.x) + bw(r) / 2;
+      tip.style.left = (px + 14 + tw > W ? Math.max(0, px - 14 - tw) : px + 14) + 'px';
+    };
+    svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml).attr('height', H).attr('fill', 'transparent')
+      .on('pointermove', show).on('pointerdown', show).on('pointerleave', () => { tip.hidden = true; hl.attr('opacity', 0); });
+
+    // legend
+    const lg = document.getElementById('legend'); lg.replaceChildren();
+    [...parts].reverse().forEach((p) => {
+      const s = document.createElement('span'); const i = document.createElement('i'); i.className = 'sw'; i.style.background = `var(${p.c})`; i.style.height = '10px'; i.style.width = '10px';
+      s.append(i, document.createTextNode(p.name)); lg.append(s);
+    });
+    LINES.forEach((l) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'toggle ln'; b.setAttribute('aria-pressed', String(state.on[l.k]));
+      b.innerHTML = `<svg width="26" height="6" aria-hidden="true"><line x1="0" y1="3" x2="26" y2="3" ${l.dash ? `stroke-dasharray="${l.dash}"` : ''}/></svg>`;
+      b.append(document.createTextNode(l.name));
+      b.addEventListener('click', () => { state.on[l.k] = !state.on[l.k]; render(); });
+      lg.append(b);
+    });
+    const note = document.getElementById('chart-note');
+    const pre24 = groups.some((g) => !g.n.da);
+    note.textContent = `Bars: optimised stack. Lines: single-market strategies for comparison. ${pre24 ? 'Before 2024 only day-ahead arbitrage is available. ' : ''}${state.zone === 'AT' ? 'No intraday estimate for Austria. ' : showId ? '' : 'Intraday not yet included (needs the Netztransparenz API credentials). '}${state.gran !== 'daily' ? 'The latest period is still running.' : 'The last bar is tomorrow, whose day-ahead prices are already known.'}`;
+  }
+
+  // ---------------------------------------------------------------- headline figures
+  function kpis() {
+    const all = days(state.zone, state.dur).filter((r) => r.da != null);
+    const last = all[all.length - 1].date;
+    const one = (from, to) => aggregate(all.filter((r) => r.date >= from && r.date <= to), 'yearly')
+      .reduce((acc, g) => { for (const s of SERIES_KEYS) { acc.s[s] = (acc.s[s] || 0) + (g.s[s] || 0); acc.n[s] = (acc.n[s] || 0) + (g.n[s] || 0); } acc.days += g.days; return acc; }, { s: {}, n: {}, days: 0 });
+    const minus = (s, n) => new Date(toDate(s).getTime() - n * 86400000).toISOString().slice(0, 10);
+    const y = last.slice(0, 4), py = String(+y - 1);
+    const items = [
+      ['Last 30 days', one(minus(last, 29), last), `to ${d3.utcFormat('%-d %b %Y')(toDate(last))}`],
+      ['Last 365 days', one(minus(last, 364), last), ''],
+      [`${y} so far`, one(`${y}-01-01`, last), ''],
+      [`${py}`, one(`${py}-01-01`, `${py}-12-31`), 'full year'],
+    ];
+    const box = document.getElementById('kpis'); box.replaceChildren();
+    for (const [lab, g, sub] of items) {
+      const d = document.createElement('div');
+      d.innerHTML = `<div class="lbl">${lab}</div><div class="num">${g.days ? f0(annStack(g)) : '—'} <small>(${g.days ? f0(ann(g, 'daOnly')) : '—'})</small></div><div class="sub2">${[sub, g.days ? `${f1(g.s.cycSt / g.n.cycSt)} cycles/day` : ''].filter(Boolean).join(' · ') || '&nbsp;'}</div>`;
+      box.append(d);
+    }
+    document.getElementById('kpi-title').textContent = `Headline figures · ${ZONES[state.zone]}, ${state.dur} battery`;
+    const g30 = items[1][1];
+    const parts = PARTS.map((p) => [p.name, ann(g30, p.k)]).filter(([, v]) => v > 0.5).sort((a, b) => b[1] - a[1]);
+    const tot = annStack(g30);
+    document.getElementById('lede').innerHTML =
+      `Over the last 365 days a ${state.dur} battery in <b>${ZONES[state.zone]}</b> could have earned up to <b>${f0(tot)} k€ per MW</b> by stacking balancing capacity and day-ahead trading, against <b>${f0(ann(g30, 'daOnly'))} k€</b> from day-ahead arbitrage alone. ` +
+      `${(() => { const t = parts.slice(0, 2).map(([n, v]) => `${n.replace(/^(Day|Intra)/, (m) => m.toLowerCase())} made ${f0(v / tot * 100)}%`).join(' and '); return t.charAt(0).toUpperCase() + t.slice(1); })()} of the stack.` +
+      (state.real === 'perfect' ? ' Figures assume perfect hindsight.' : ' Figures include the capture rates below the switches.');
+  }
+
+  // ---------------------------------------------------------------- tables
+  function periodsTable() {
+    const groups = inRange(aggregate(days(state.zone, state.dur), state.gran)).reverse();
+    const showId = groups.some((g) => g.anyId);
+    const parts = PARTS.filter((p) => p.k !== 'id' || showId);
+    const t = document.getElementById('periods'); t.replaceChildren();
+    const head = ['Period', 'Days', 'Stack', ...[...parts].reverse().map((p) => p.name), 'DA only', 'FCR only', 'aFRR only', 'Cycles stack', 'Cycles DA'];
+    t.innerHTML = `<thead><tr>${head.map((h, i) => `<th class="${i === 2 ? 'tot' : ''}${i === 3 || i === 3 + parts.length ? ' sep' : ''}">${h}</th>`).join('')}</tr></thead>`;
+    const tb = document.createElement('tbody');
+    const lbl = { daily: (k) => k, weekly: (k) => 'wk ' + k, monthly: (k) => k, yearly: (k) => k }[state.gran];
+    for (const g of groups) {
+      const cells = [lbl(g.key), g.days, fmtV(stackTotal(g)), ...[...parts].reverse().map((p) => fmtV(val(g, p.k))),
+        fmtV(val(g, 'daOnly')), fmtV(val(g, 'fcrOnly')), fmtV(val(g, 'afrrOnly')),
+        g.n.cycSt ? f1(val(g, 'cycSt')) : '—', g.n.cycDa ? f1(val(g, 'cycDa')) : '—'];
+      const tr = document.createElement('tr');
+      tr.innerHTML = cells.map((c, i) => `<td class="${i === 2 ? 'tot' : ''}${i === 3 || i === 3 + parts.length ? ' sep' : ''}">${c}</td>`).join('');
+      tb.append(tr);
+    }
+    t.append(tb);
+    document.getElementById('tbl-title').textContent = `Revenues per ${{ daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[state.gran]} · ${ZONES[state.zone]}, ${state.dur}`;
+    document.getElementById('tbl-sub').textContent = `${unitLabel()}${state.unit === 'ann' ? ' (period average scaled to a full year)' : ' (sum over the period)'}; latest first. Cycles are full equivalent cycles per day.`;
+  }
+
+  function compareTable() {
+    const t = document.getElementById('compare'); t.replaceChildren();
+    const durs = DATA.config.durations_h.map((d) => d + 'h');
+    const years = new Set();
+    const agg = {};
+    for (const z of Object.keys(ZONES)) for (const d of durs) {
+      agg[z + d] = new Map(aggregate(days(z, d), 'yearly').map((g) => [g.key, g]));
+      for (const k of agg[z + d].keys()) if (k >= '2024') years.add(k);
+    }
+    const ys = [...years].sort().reverse();
+    let html = '<thead><tr><th></th>' + Object.values(ZONES).map((n) => `<th class="grp sep" colspan="${durs.length}">${n}</th>`).join('') + '</tr><tr><th>Year</th>' +
+      Object.keys(ZONES).map(() => durs.map((d, i) => `<th class="${i === 0 ? 'sep' : ''}">${d.replace('h', ' h')}</th>`).join('')).join('') + '</tr></thead><tbody>';
+    for (const y of ys) {
+      html += `<tr><td>${y}${y === DATA.updated.slice(0, 4) ? ' (to date)' : ''}</td>`;
+      for (const z of Object.keys(ZONES)) durs.forEach((d, i) => {
+        const g = agg[z + d].get(y);
+        html += `<td class="${i === 0 ? 'sep' : ''}">${g ? `<b>${f0(annStack(g))}</b> <span style="color:var(--ink-2)">(${f0(ann(g, 'daOnly'))})</span>` : '—'}</td>`;
+      });
+      html += '</tr>';
+    }
+    t.innerHTML = html + '</tbody>';
+  }
+
+  function render() {
+    for (const [id, key] of [['seg-zone', 'zone'], ['seg-dur', 'dur'], ['seg-gran', 'gran'], ['seg-range', 'range'], ['seg-unit', 'unit'], ['seg-real', 'real']])
+      document.querySelectorAll(`#${id} button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === state[key])));
+    document.getElementById('haircut').hidden = state.real !== 'haircut';
+    document.getElementById('seg-range').hidden = state.gran === 'yearly';
+    drawChart(); kpis(); periodsTable(); compareTable();
+  }
+
+  for (const [id, key] of [['seg-zone', 'zone'], ['seg-dur', 'dur'], ['seg-gran', 'gran'], ['seg-range', 'range'], ['seg-unit', 'unit'], ['seg-real', 'real']])
+    document.querySelectorAll(`#${id} button`).forEach((b) => b.addEventListener('click', () => {
+      state[key] = b.dataset.v;
+      if (key === 'gran' && b.dataset.v === 'daily' && state.range !== '90' && state.range !== '365') state.range = '365';
+      render();
+    }));
+  document.querySelectorAll('#haircut input').forEach((i) => i.addEventListener('input', () => render()));
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawChart, 150); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', drawChart);
+
+  fetch('../data/bess_daily.json', { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then((d) => {
+    DATA = d;
+    const c = d.config;
+    document.getElementById('assumptions').innerHTML = [
+      `Power 1 MW; storage ${c.durations_h.join(', ')} MWh (1, 2 and 4-hour battery).`,
+      `Round-trip efficiency ${Math.round(c.round_trip_efficiency * 100)}%, at most ${c.max_cycles_per_day} full cycles per day; each day starts and ends ${c.soc_start_end * 100}% full.`,
+      `FCR: ${c.fcr_power_factor} MW of power held per MW offered and ${c.fcr_energy_h * 60} minutes of full activation kept available in each direction.`,
+      `aFRR: ${c.afrr_energy_h} hour of full activation kept available in each offered direction; up and down can be offered at the same time.`,
+      `Capacity products in ${c.block_h}-hour blocks, priced at the daily average of the published contracted-capacity prices (pay-as-bid average).`,
+    ].map((s) => `<li>${s}</li>`).join('');
+    document.getElementById('updated').textContent = 'Recalculated ' + d3.utcFormat('%-d %B %Y, %H:%M UTC')(new Date(d.updated));
+    render();
+  }).catch((e) => { document.getElementById('chart').innerHTML = `<p class="status">Could not load the data (${e.message}).</p>`; });
+})();
+</script>
+</body>
+</html>
