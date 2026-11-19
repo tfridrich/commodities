@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Metals prices · copper, iron ore, lithium carbonate</title>
-<meta name="description" content="Daily COMEX and SHFE copper, CME and DCE iron ore and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
+<meta name="description" content="Daily COMEX and SHFE copper, SGX and DCE iron ore and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
@@ -148,18 +148,17 @@ footer a { color: inherit; }
   </template>
 
   <ul class="notes full">
-    <li>COMEX copper and CME iron ore are daily closes of the nearby futures contract as listed by Yahoo Finance; when it rolls to the next month the line can show a step. The CME iron ore contract settles on the average of the Platts index over its delivery month, so during that month part of its price is already fixed and it moves less than the daily index. SHFE, DCE and GFEX prices are the daily settlement prices of the exchange's main (most traded) contract, which is usually three to five months out, so they are not the front month.</li>
-    <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the CME contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
-    <li>Iron ore 62% CFR is the CME contract that settles against the Platts IODEX assessment; it is not Platts' own price. SGX's iron ore futures, the most traded offshore contract, are not freely available.</li>
+    <li>COMEX copper and SGX iron ore are daily closes of the continuous nearby futures contract; when it rolls to the next month the line can show a step. The free source for these goes back to 2016 (COMEX copper) and December 2022 (SGX iron ore). SGX iron ore settles on the average of the Platts 62% Fe index over its delivery month, so during that month part of its price is already fixed and it moves less than the daily index. SHFE, DCE and GFEX prices are the daily settlement prices of the exchange's main (most traded) contract, which is usually three to five months out, so they are not the front month.</li>
+    <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the SGX contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
     <li>There is no free daily source for lithium prices outside China: the CME and SGX lithium contracts settle against Fastmarkets assessments, which are licensed, and they trade too rarely to give a daily series. GFEX lithium carbonate is the reference contract for China, the largest market.</li>
-    <li>Unit conversion: 1 t = 1,000 kg = 2,204.62 lb. Currencies are converted with the USD/CNY and EUR/USD rate of the same day (or the latest day before it).</li>
-    <li>Forward curves are the daily settlement prices of each contract month. The Chinese exchanges list twelve consecutive months; COMEX copper lists monthly contracts for about two years and Yahoo Finance carries only some of the later months. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the price on the Copper, Iron ore and Lithium tabs.</li>
+    <li>Unit conversion: 1 t = 1,000 kg = 2,204.62 lb. Currencies are converted with the ECB euro reference rates (USD and CNY per EUR) of the same day, or the latest day before it.</li>
+    <li>Forward curves are the daily settlement prices of each contract month. They are available for the Chinese exchanges, which list twelve consecutive months; there is no free source for the COMEX and SGX contract months that can be read automatically. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the price on the Copper, Iron ore and Lithium tabs.</li>
     <li>The LME is the global benchmark for copper, but its prices are licensed and may not be republished, so they are not shown.</li>
   </ul>
 
   <footer>
     <p id="updated"></p>
-    <p class="full">US futures and exchange rates via Yahoo Finance; Shanghai, Dalian and Guangzhou futures via Sina Finance. For information only, no warranty. Also: <a href="../">power prices for Austria and Germany</a> and <a href="../oil-gas/">crude oil and natural gas prices</a>.</p>
+    <p class="full">Futures prices via Sina Finance; exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty. Also: <a href="../">power prices for Austria and Germany</a> and <a href="../oil-gas/">crude oil and natural gas prices</a>.</p>
   </footer>
 </div>
 
@@ -174,7 +173,7 @@ footer a { color: inherit; }
   // benchmarks only need an entry here (and in scripts/update_metals.py).
   const LOOK = {
     comex: { color: '--s1' }, shfe: { color: '--s2' },
-    tio: { color: '--s1' }, dce: { color: '--s2' },
+    sgx: { color: '--s1' }, dce: { color: '--s2' },
     gfex: { color: '--s3' },
   };
   const SPREADS = {
