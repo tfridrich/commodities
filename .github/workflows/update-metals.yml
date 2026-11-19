@@ -1,0 +1,72 @@
+name: Update metals prices and publish site
+
+on:
+  schedule:
+    # SHFE, DCE and GFEX settle after the 15:00 Beijing close (07:00 UTC); COMEX copper and
+    # CME iron ore settle in the US afternoon. 22:47 UTC (Mon-Fri) catches both, a few minutes
+    # after the oil-and-gas run; 06:47 UTC (Tue-Sat) is a catch-up run.
+    - cron: "47 22 * * 1-5"
+    - cron: "47 6 * * 2-6"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Re-download the full price history (type yes)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: tb-update          # same group as the power and oil-gas workflows, so they never push at once
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20      # a normal run takes 2-4 minutes, the first (full) run about 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the branch tip when the job starts, not the commit that triggered the run: a run that
+          # waited in the tb-update queue must publish the data the other workflows pushed meanwhile
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch metals prices and forward curves
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          if [ "${{ github.event.inputs.full }}" = "yes" ]; then
+            python scripts/update_metals.py --full
+          else
+            python scripts/update_metals.py
+          fi
+
+      - name: Save updated data to the repository
+        run: |
+          git config user.name "tb-spread-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data/metals.json docs/data/metals_curves.json
+          if git diff --cached --quiet; then
+            echo "No new data."
+          else
+            git commit -m "Update metals prices $(date -u +%Y-%m-%d)"
+            git pull --rebase --quiet
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4
