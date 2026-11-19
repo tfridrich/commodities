@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metals prices · copper, iron ore, lithium carbonate</title>
+<title>Metals prices · copper, iron ore, lithium carbonate · Commodities</title>
 <meta name="description" content="Daily COMEX and SHFE copper, SGX and DCE iron ore and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -82,10 +82,28 @@ footer a { color: inherit; }
   .hero { padding: 12px 10px 8px; }
   td.big { font-size: 17px; }
 }
+
+/* ---- commodity switcher (shared by all pages) ---- */
+.cnav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav .brand { font-size: 13px; font-weight: 700; font-stretch: 125%; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
+.cnav-links { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
+.cnav-links a { font-size: 15px; font-weight: 560; color: var(--ink-2); text-decoration: none; padding: 5px 16px; border-radius: 999px; white-space: nowrap; }
+.cnav-links a:hover { color: var(--ink); }
+.cnav-links a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.compact .cnav { margin-bottom: 12px; padding-bottom: 10px; }
+@media (max-width: 560px) { .cnav-links a { padding: 5px 12px; font-size: 14px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <nav class="cnav" aria-label="Commodities">
+    <a class="brand" href="../">Commodities</a>
+    <div class="cnav-links">
+      <a href="../">Power</a>
+      <a href="../oil-gas/">Oil &amp; gas</a>
+      <a href="../metals/" aria-current="page">Metals</a>
+    </div>
+  </nav>
   <header>
     <h1>Copper, iron ore and lithium prices</h1>
     <nav class="tabs" role="tablist" aria-label="Metals">
@@ -158,7 +176,7 @@ footer a { color: inherit; }
 
   <footer>
     <p id="updated"></p>
-    <p class="full">Futures prices via Sina Finance; exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty. Also: <a href="../">power prices for Austria and Germany</a> and <a href="../oil-gas/">crude oil and natural gas prices</a>.</p>
+    <p class="full">Futures prices via Sina Finance; exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
   </footer>
 </div>
 
@@ -730,6 +748,16 @@ footer a { color: inherit; }
       selectTab(tabs.find((t) => t.id === 'tab-' + want) || tabs[0]);
     })
     .catch((e) => { document.querySelectorAll('.panel').forEach((p) => { p.textContent = `The price data could not be loaded (${e.message}).`; }); });
+})();
+</script>
+<script>
+// keep ?view=compact / ?theme=… when switching commodity
+(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { a.href = a.getAttribute('href') + q; }); })();
+// on narrow screens, scroll the open sub-tab into view
+(() => {
+  const bar = document.querySelector('.tabs'); if (!bar) return;
+  const show = () => { const t = bar.querySelector('[aria-selected=true]'); if (t) bar.scrollLeft = t.offsetLeft - bar.offsetLeft - 16; };
+  bar.addEventListener('click', show); addEventListener('load', show); setTimeout(show, 0);
 })();
 </script>
 </body>
