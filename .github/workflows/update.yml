@@ -55,6 +55,19 @@ jobs:
             python scripts/update_tb.py
           fi
 
+      - name: Recalculate battery revenues
+        if: github.event_name != 'push' && env.HAS_KEY == 'true'
+        env:
+          NTP_CLIENT_ID: ${{ secrets.NTP_CLIENT_ID }}
+          NTP_CLIENT_SECRET: ${{ secrets.NTP_CLIENT_SECRET }}
+        run: |
+          pip install --quiet numpy scipy
+          if [ -n "${{ github.event.inputs.since }}" ]; then
+            python scripts/update_bess.py --since "${{ github.event.inputs.since }}"
+          else
+            python scripts/update_bess.py
+          fi
+
       - name: Save updated data to the repository
         if: github.event_name != 'push' && env.HAS_KEY == 'true'
         run: |
