@@ -25,6 +25,16 @@ Usage:
     python scripts/update_oil_gas.py --curves-only   # forward curves only
     EIA_API_KEY=... python scripts/update_oil_gas.py   # also fetch the EIA spot series
 
+Caching and fallbacks (Yahoo blocks many cloud servers, including GitHub's):
+  - Only days that are missing are requested. A series whose last stored day is already the
+    latest settled trading day is not requested at all, and neither is a forward curve that
+    already has that day. Repeated runs therefore cost almost no Yahoo requests.
+  - EUR/USD and GBP/USD come from the ECB (official reference rates), Yahoo only as fallback.
+  - When Yahoo refuses, WTI and Henry Hub front-month settlements are filled in from the EIA
+    (NYMEX contract 1, series RCLC1 and RNGC1), if EIA_API_KEY is set. EIA lags a few days.
+  - Whatever is still missing (Brent, TTF, NBP, forward curves) is filled in by the next run
+    that gets through to Yahoo, e.g. the scheduled task on Thomas's PC (local_runner/).
+
 Only the Python standard library is used.
 """
 import argparse
@@ -41,7 +51,7 @@ from zoneinfo import ZoneInfo
 
 OUT_FILE = Path(__file__).resolve().parent.parent / "docs" / "data" / "oil_gas.json"
 HISTORY_START = dt.date(2000, 1, 1)
-REFRESH_DAYS = 45     # re-fetch this window on every run, so late corrections are picked up
+REFRESH_DAYS = 7      # re-read the last week when a series is fetched, to pick up late corrections
 SETTLED_HOUR = 17     # a bar dated today counts as final after 17:00 exchange time
 
 SERIES = [
@@ -65,6 +75,15 @@ SERIES = [
          id="RNGWHHD", route="natural-gas/pri/fut", desc="Henry Hub natural gas spot price, EIA"),
 ]
 FX = [dict(key="EURUSD", id="EURUSD=X"), dict(key="GBPUSD", id="GBPUSD=X")]
+
+# When Yahoo refuses, these front-month series are filled from the same NYMEX contract on EIA
+EIA_FILL = {
+    "wti": dict(route="petroleum/pri/fut", id="RCLC1"),     # NYMEX WTI contract 1, USD/bbl
+    "hh": dict(route="natural-gas/pri/fut", id="RNGC1"),    # NYMEX Henry Hub contract 1, USD/MMBtu
+}
+ECB_URL = ("https://data-api.ecb.europa.eu/service/data/EXR/D.USD+GBP.EUR.SP00.A"
+           "?format=csvdata&detail=dataonly&startPeriod={start}")
+EXCHANGE_TZ = ZoneInfo("America/New_York")
 
 # Forward curves: daily settlements of the individual NYMEX contract months on Yahoo
 # (symbol = root + month code + 2-digit year + ".NYM", e.g. CLF27.NYM = WTI January 2027).
@@ -202,6 +221,43 @@ def fetch_eia(route, series_id, start, key):
             return out
 
 
+def last_settled_day(now_utc=None):
+    """Latest weekday whose NYMEX settlement is final (after SETTLED_HOUR New York time).
+    Exchange holidays are not known here; on those days one extra request is made."""
+    now = (now_utc or dt.datetime.now(dt.timezone.utc)).astimezone(EXCHANGE_TZ)
+    d = now.date() if now.hour >= SETTLED_HOUR else now.date() - dt.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= dt.timedelta(days=1)
+    return d
+
+
+def up_to_date(dates, settled):
+    return bool(dates) and max(dates) >= settled.isoformat()
+
+
+def fetch_ecb_fx(start):
+    """ECB reference rates -> {"EURUSD": {date: USD per EUR}, "GBPUSD": {date: USD per GBP}}."""
+    req = urllib.request.Request(ECB_URL.format(start=start.isoformat()), headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        text = r.read().decode("utf-8", errors="replace")
+    lines = text.strip().splitlines()
+    if not lines or not lines[0].startswith("KEY,"):
+        raise RuntimeError("ECB returned an unexpected page: " + text[:80].replace("\n", " "))
+    head = lines[0].split(",")
+    i_ccy, i_day, i_val = head.index("CURRENCY"), head.index("TIME_PERIOD"), head.index("OBS_VALUE")
+    per_eur = {"USD": {}, "GBP": {}}
+    for line in lines[1:]:
+        f = line.split(",")
+        try:
+            v = float(f[i_val])
+        except (ValueError, IndexError):
+            continue
+        if f[i_ccy] in per_eur:
+            per_eur[f[i_ccy]][f[i_day]] = v
+    usd = per_eur["USD"]
+    return {"EURUSD": dict(usd), "GBPUSD": {d: usd[d] / v for d, v in per_eur["GBP"].items() if d in usd and v}}
+
+
 # ---------------------------------------------------------------- forward curves
 
 def add_months(year, month, n):
@@ -255,10 +311,15 @@ def build_snapshots(histories):
 
 def update_curves(today, full=False):
     store = json.loads(CURVE_FILE.read_text()) if CURVE_FILE.exists() else {"curves": {}}
-    out, changed = {"curves": {}}, False
+    out, changed, blocked = {"curves": {}}, False, None
+    settled = last_settled_day()
     for c in CURVES:
         old = store.get("curves", {}).get(c["key"], {})
         snaps = old.get("snapshots", {})
+        if old and (blocked or (not full and up_to_date(snaps, settled))):
+            out["curves"][c["key"]] = old       # cached: already has the latest settled day
+            print(f"curve {c['key']:<6} " + ("kept (Yahoo is refusing)" if blocked else f"up to date ({max(snaps)})"))
+            continue
         backfill = full or not snaps
         start = today - dt.timedelta(days=CURVE_BACKFILL_DAYS if backfill else CURVE_REFRESH_DAYS)
         months = contract_months(today, c["monthly"], c["dec_years"], back_months=1)
@@ -267,13 +328,18 @@ def update_curves(today, full=False):
             try:
                 got = fetch_yahoo(contract_symbol(c["root"], ym), start, today, missing_ok=True, pause=0.3)
             except SourceBlocked as e:
-                print(f"::error::Forward curves not updated: {e}. The stored curves are kept.")
-                return False
+                blocked = e
+                break
             except Exception as e:
                 print(f"::warning::{c['key']} {ym}: {e}")
                 got = {}
             if got:
                 histories[ym] = got
+        if blocked:
+            print(f"::warning::Forward curve {c['key']} not updated: {blocked}. The stored curve is kept.")
+            if old:
+                out["curves"][c["key"]] = old
+            continue
         new = build_snapshots(histories)
         print(f"curve {c['key']:<6} {len(histories):>3} contracts, {len(new):>3} days from {start}")
         if not new:
@@ -287,11 +353,11 @@ def update_curves(today, full=False):
         changed |= merged != snaps or {k: old.get(k) for k in meta} != meta
     if not changed:
         print("No new forward curves - file left unchanged.")
-        return True
+        return not blocked
     out["updated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     CURVE_FILE.write_text(json.dumps(out, separators=(",", ":")))
     print(f"Wrote {CURVE_FILE} ({CURVE_FILE.stat().st_size / 1e6:.2f} MB)")
-    return True
+    return not blocked
 
 
 # ---------------------------------------------------------------- main
@@ -318,14 +384,16 @@ def main():
     today = dt.datetime.now(dt.timezone.utc).date()
     prices_ok = True if args.curves_only else update_prices(args, today)
     curves_ok = True if args.no_curves else update_curves(today, full=args.full)
-    if not prices_ok and not curves_ok:
-        sys.exit("Nothing could be fetched - see the messages above.")
+    if not prices_ok or not curves_ok:
+        print("::warning::Some prices could not be fetched (Yahoo refuses many cloud servers). "
+              "They are filled in by the next run that gets through, e.g. the scheduled task on the PC.")
 
 
 def update_prices(args, today):
-    """Daily prices for the Crude oil and Natural gas tabs. Returns False if nothing could be fetched."""
+    """Daily prices for the Crude oil and Natural gas tabs. Returns False if Yahoo refused."""
     store = load()
     eia_key = os.environ.get("EIA_API_KEY", "").strip()
+    settled = last_settled_day()
     failures = []
 
     def start_for(existing, full_done=True):
@@ -341,7 +409,12 @@ def update_prices(args, today):
             if old:            # keep what was fetched earlier
                 new_series[s["key"]] = old
             continue
-        start = start_for(old.get("data"), old.get("full_history", False))
+        data = old.get("data") or {}
+        if s["source"] == "yahoo" and not args.full and up_to_date(data, settled):
+            print(f"{s['key']:<11} up to date ({max(data)}), not requested")
+            new_series[s["key"]] = {**old, **meta}
+            continue
+        start = start_for(data, old.get("full_history", False) or s["source"] == "yahoo")
         try:
             if s["source"] == "yahoo":
                 got = fetch_yahoo(s["id"], start, today)
@@ -352,23 +425,37 @@ def update_prices(args, today):
             print(f"::warning::{s['key']}: {e}")
             failures.append(s["key"])
             got = {}
+            fb = EIA_FILL.get(s["key"])
+            if fb and eia_key and data:
+                after = dt.date.fromisoformat(max(data)) + dt.timedelta(days=1)
+                try:
+                    got = fetch_eia(fb["route"], fb["id"], after, eia_key)
+                    print(f"{s['key']:<11} {len(got):>5} days from {after}  (EIA fallback {fb['id']})")
+                except Exception as e2:
+                    print(f"::warning::{s['key']} EIA fallback: {e2}")
         full = old.get("full_history", False) or (bool(got) and start == HISTORY_START)
-        new_series[s["key"]] = {**meta, "full_history": full, "data": merge(old.get("data"), got, 3)}
+        new_series[s["key"]] = {**meta, "full_history": full, "data": merge(data, got, 3)}
 
-    new_fx, fx_full = {}, set(store.get("fx_full_history", []))
+    # exchange rates: ECB first (works from GitHub), Yahoo only if the ECB fails
+    old_fx = store.get("fx", {})
+    fx_start = min((dt.date.fromisoformat(max(old_fx[f["key"]])) for f in FX if old_fx.get(f["key"])),
+                   default=HISTORY_START) - dt.timedelta(days=REFRESH_DAYS)
+    new_fx, fx_full = {f["key"]: dict(old_fx.get(f["key"], {})) for f in FX}, set(store.get("fx_full_history", []))
+    try:
+        got_fx = fetch_ecb_fx(fx_start)
+        print("FX          " + ", ".join(f"{k} {len(v)} days" for k, v in got_fx.items()) + f" from {fx_start}  (ECB)")
+    except Exception as e:
+        print(f"::warning::FX (ECB): {e} - trying Yahoo")
+        got_fx = {}
+        for f in FX:
+            if up_to_date(new_fx[f["key"]], settled):
+                continue
+            try:
+                got_fx[f["key"]] = fetch_yahoo(f["id"], max(fx_start, HISTORY_START), today)
+            except Exception as e2:
+                print(f"::warning::{f['key']}: {e2}")
     for f in FX:
-        old = store.get("fx", {}).get(f["key"], {})
-        start = start_for(old, f["key"] in store.get("fx_full_history", []))
-        try:
-            got = fetch_yahoo(f["id"], start, today)
-            print(f"{f['key']:<11} {len(got):>5} days from {start}  (yahoo {f['id']})")
-        except Exception as e:
-            print(f"::warning::{f['key']}: {e}")
-            failures.append(f["key"])
-            got = {}
-        if got and start == HISTORY_START:
-            fx_full.add(f["key"])
-        new_fx[f["key"]] = merge(old, got, 5)
+        new_fx[f["key"]] = merge(new_fx[f["key"]], got_fx.get(f["key"], {}), 5)
 
     out = {
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -376,17 +463,16 @@ def update_prices(args, today):
         "fx": new_fx,
         "fx_full_history": sorted(fx_full),
     }
-    yahoo_keys = [s["key"] for s in SERIES if s["source"] == "yahoo"] + [f["key"] for f in FX]
-    if all(k in failures for k in yahoo_keys):
-        print("::error::Prices not updated: all Yahoo requests failed. The stored prices are kept.")
-        return False
+    yahoo_failed = [k for k in failures if any(x["key"] == k and x["source"] == "yahoo" for x in SERIES)]
+    if yahoo_failed:
+        print(f"::warning::Yahoo refused: {', '.join(yahoo_failed)}. Stored prices are kept for these.")
     if all(store.get(k) == out[k] for k in ("series", "fx", "fx_full_history")):
         print("No new prices - file left unchanged.")
-        return True
+        return not yahoo_failed
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUT_FILE.write_text(json.dumps(out, separators=(",", ":")))
     print(f"Wrote {OUT_FILE} ({OUT_FILE.stat().st_size / 1e6:.2f} MB)")
-    return True
+    return not yahoo_failed
 
 
 if __name__ == "__main__":

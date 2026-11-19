@@ -37,7 +37,7 @@ The data is already filled in from 1 Jan 2019 to 12 Nov 2026, so the site works 
 2. Go to the **Actions** tab (click *I understand… enable them* if asked) → choose
    **Update TB spreads and publish site** → **Run workflow**.
 3. After about a minute your site is live at
-   `https://<your-github-username>.github.io/tb-spreads/`
+   `https://<your-github-username>.github.io/commodities/`
    (the address is also shown in *Settings* → *Pages*).
 
 Until you add the key (step 4), the site shows the stored data up to 12 Nov 2026. The workflow shows a yellow warning about the missing key, which is expected.
@@ -64,7 +64,7 @@ paste one of these (replace the address with yours):
 Full page (chart, latest day, all tables):
 
 ```html
-<iframe src="https://<your-github-username>.github.io/tb-spreads/"
+<iframe src="https://<your-github-username>.github.io/commodities/"
         title="Day-ahead TB spreads, Austria and Germany"
         style="width:100%; height:2400px; border:0;" loading="lazy"></iframe>
 ```
@@ -72,13 +72,37 @@ Full page (chart, latest day, all tables):
 Compact version (headline, chart and latest day only):
 
 ```html
-<iframe src="https://<your-github-username>.github.io/tb-spreads/?view=compact&theme=light"
+<iframe src="https://<your-github-username>.github.io/commodities/?view=compact&theme=light"
         title="Day-ahead TB spreads, Austria and Germany"
         style="width:100%; height:1000px; border:0;" loading="lazy"></iframe>
 ```
 
 `theme=light` or `theme=dark` fixes the colour scheme; without it the page follows the
 visitor's system setting. Adjust `height` so nothing is cut off on your page layout.
+
+## 6. Oil & gas prices: GitHub plus your PC
+
+Yahoo Finance refuses most requests from GitHub's servers, so the oil & gas data is updated from
+three places, and whichever gets through first fills the gaps:
+
+- **GitHub, automatically:** exchange rates from the ECB, and (with a free EIA key) WTI and Henry Hub
+  front-month prices and the EIA spot prices. It still tries Yahoo, but only for missing days.
+- **Your PC, whenever it is on:** the `local_runner` folder. A scheduled task tries Yahoo from your
+  connection at 07:15, 19:15 and after you log on (and catches up if the PC was off), then uploads
+  the new data to GitHub. Brent, TTF, NBP and the forward curves mainly come from here.
+
+**EIA key (free):** register at <https://www.eia.gov/opendata/register.php>, then in the repository
+*Settings* → *Secrets and variables* → *Actions* → *New repository secret*, name `EIA_API_KEY`.
+
+**GitHub token for the PC:** <https://github.com/settings/personal-access-tokens/new> →
+name it e.g. `commodities PC`, expiration up to 1 year, *Repository access* → *Only select
+repositories* → `commodities`, *Permissions* → *Repository permissions* → *Contents* →
+**Read and write** → *Generate token*, and copy it.
+
+**Set up the PC:** copy the `local_runner` folder anywhere on your PC (e.g. *Documents*),
+double-click `setup.bat`, paste the token (and the EIA key if you have one). It runs once to test
+and creates the scheduled task. `run_now.bat` runs it on demand, `update_log.txt` shows what happened,
+`uninstall.bat` removes the task. When the token expires, run `setup.bat` again with a new one.
 
 ## Notes
 

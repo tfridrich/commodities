@@ -174,7 +174,7 @@ footer a { color: inherit; }
 
   <footer>
     <p id="updated"></p>
-    <p class="full">Futures prices via Yahoo Finance; spot prices from the <a href="https://www.eia.gov/opendata/">EIA Open Data API</a>. For information only, no warranty.</p>
+    <p class="full">Futures prices via Yahoo Finance; when Yahoo is unavailable, WTI and Henry Hub front-month settlements come from the <a href="https://www.eia.gov/opendata/">EIA Open Data API</a>, which also provides the spot prices. Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
   </footer>
 </div>
 
@@ -452,7 +452,7 @@ footer a { color: inherit; }
       const L = q('[data-lede]'); L.replaceChildren();
       const b = (t) => Object.assign(document.createElement('b'), { textContent: t });
       const main = series.filter((s) => s.source !== 'eia');
-      const d = main[0].dates.at(-1);
+      const d = main.map((s) => s.dates.at(-1)).sort().at(-1);
       L.append(`Closing prices on ${dayFmt(toDate(d))}: `);
       main.forEach((s, i) => {
         const dd = s.dates.at(-1), v = s.data[dd], p = s.dates.length > 1 ? (v / s.data[s.dates.at(-2)] - 1) * 100 : null;
