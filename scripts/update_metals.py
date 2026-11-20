@@ -1,5 +1,5 @@
 """
-Daily update of copper, iron ore and lithium carbonate prices for the metals page (docs/metals/).
+Daily update of copper, aluminium, iron ore and lithium carbonate prices for the metals page (docs/metals/).
 
 Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Finance does not)
   - Sina Finance global futures API: daily closes of the continuous contracts
@@ -7,10 +7,16 @@ Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Fin
         Iron ore   FEF     USD/t        SGX iron ore 62% Fe CFR China
   - Sina Finance futures API: daily settlement prices of the Chinese exchanges
         Copper     CU0     CNY/t     SHFE copper, main (most active) contract
+        Aluminium  AL0     CNY/t     SHFE primary aluminium, main contract
         Iron ore   I0      CNY/t     DCE iron ore 62% Fe fines, main contract
         Lithium    LC0     CNY/t     GFEX battery-grade lithium carbonate, main contract
-    and their forward curves from the individual contract months (CU2701, I2705, LC2707, ...).
+    and their forward curves from the individual contract months (CU2701, AL2701, I2705, LC2707, ...).
     Chinese futures prices include 13% VAT; the page can show them with or without it.
+  - IMF Primary Commodity Prices via FRED (CSV, no key): monthly averages of the LME prices
+        PCOPPUSDM  copper, grade A cathode, LME spot, USD/t
+        PALUMUSDM  aluminium, 99.5% minimum purity, LME spot, USD/t
+    Daily LME prices are licensed and may not be republished; these public monthly averages may.
+    They are published with a lag of one to two months.
   - ECB euro reference rates (USD and CNY per EUR) for the unit conversions.
 
 To add a benchmark, add one entry to SERIES (and CURVES for a forward curve) and, if it is
@@ -55,6 +61,14 @@ SERIES = [
          desc="COMEX High Grade Copper, continuous nearby futures, daily close"),
     dict(key="shfe", group="copper", label="SHFE copper", unit="CNY/t", source="sina", id="CU0", vat=CN_VAT,
          desc="Shanghai Futures Exchange copper cathode, main contract, settlement price incl. 13% VAT"),
+    dict(key="lme_cu", group="copper", label="LME copper (IMF monthly)", unit="USD/t", source="fred", id="PCOPPUSDM",
+         freq="monthly",
+         desc="IMF global price of copper: monthly average of the LME grade A cathode spot price, published one to two months later"),
+    dict(key="shfe_al", group="aluminium", label="SHFE aluminium", unit="CNY/t", source="sina", id="AL0", vat=CN_VAT,
+         desc="Shanghai Futures Exchange primary aluminium (Al 99.70%), main contract, settlement price incl. 13% VAT"),
+    dict(key="lme_al", group="aluminium", label="LME aluminium (IMF monthly)", unit="USD/t", source="fred", id="PALUMUSDM",
+         freq="monthly",
+         desc="IMF global price of aluminium: monthly average of the LME 99.5% minimum purity spot price, published one to two months later"),
     dict(key="sgx", group="iron", label="SGX iron ore 62%", unit="USD/t", source="sina_global", id="FEF",
          tz="Asia/Singapore", settled_hour=20,
          desc="SGX iron ore 62% Fe CFR China futures, continuous nearby contract, daily close, USD per dry tonne"),
@@ -74,6 +88,8 @@ FX_START = dt.date(1999, 1, 4)
 CURVES = [
     dict(key="shfe", group="copper", label="SHFE copper", unit="CNY/t", source="sina", root="CU", vat=CN_VAT,
          monthly=13, dec_years=0, desc="SHFE copper futures (CU), settlement prices incl. 13% VAT"),
+    dict(key="shfe_al", group="aluminium", label="SHFE aluminium", unit="CNY/t", source="sina", root="AL", vat=CN_VAT,
+         monthly=13, dec_years=0, desc="SHFE aluminium futures (AL), settlement prices incl. 13% VAT"),
     dict(key="dce", group="iron", label="DCE iron ore", unit="CNY/t", source="sina", root="I", vat=CN_VAT,
          monthly=13, dec_years=0, desc="DCE iron ore futures (I), settlement prices incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", root="LC", vat=CN_VAT,
@@ -90,6 +106,8 @@ SINA_HOST = "sina.com.cn"     # keys for the consecutive-failure counter
 ECB_URL = ("https://data-api.ecb.europa.eu/service/data/EXR/D.USD+CNY.EUR.SP00.A"
            "?format=csvdata&detail=dataonly&startPeriod={start}")
 ECB_HOST = "ecb.europa.eu"
+FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={id}"
+FRED_HOST = "stlouisfed.org"
 
 
 # ---------------------------------------------------------------- Sina Finance
@@ -179,6 +197,27 @@ def fetch_sina(symbol, start, pause=0.5, spec=None):
     return {d: v for d, v in got.items() if d >= start.isoformat()}
 
 
+# ---------------------------------------------------------------- IMF monthly prices via FRED
+
+def parse_fred(text, series_id):
+    """FRED CSV (observation_date,ID) -> {"YYYY-MM-01": value}. Missing values are '.' or empty."""
+    lines = text.strip().splitlines()
+    if not lines or "," not in lines[0] or series_id not in lines[0]:
+        raise ValueError("FRED returned an unexpected page: " + text[:80].replace("\n", " "))
+    out = {}
+    for line in lines[1:]:
+        d, _, v = line.partition(",")
+        v = _num(v.strip())
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d.strip()) and v is not None:
+            out[d.strip()] = round(v, 4)
+    return out
+
+
+def fetch_fred(series_id):
+    """The whole series (a few hundred months, one small request)."""
+    return parse_fred(get_text(FRED_URL.format(id=series_id), host=FRED_HOST), series_id)
+
+
 # ---------------------------------------------------------------- ECB exchange rates
 
 def parse_ecb(text):
@@ -218,22 +257,26 @@ def update_prices(args, today):
     for s in SERIES:
         old = store.get("series", {}).get(s["key"], {})
         meta = {k: s[k] for k in ("group", "label", "unit", "source", "id", "desc")}
-        if s.get("vat"):
-            meta["vat"] = s["vat"]
+        for k in ("vat", "freq"):
+            if s.get(k):
+                meta[k] = s[k]
         start = start_for(old.get("data"), old.get("full_history", False))
         try:
             if s["source"] == "yahoo":
                 got = og.fetch_yahoo(s["id"], start, today)
+            elif s["source"] == "fred":
+                got = fetch_fred(s["id"])
             elif s["source"] == "sina_global":
                 got = fetch_sina(s["id"], start, spec=s)
             else:
                 got = fetch_sina(s["id"], start)
-            print(f"{s['key']:<8} {len(got):>5} days from {start}  ({s['source']} {s['id']})")
+            what = f"{len(got):>5} months" if s.get("freq") == "monthly" else f"{len(got):>5} days from {start}"
+            print(f"{s['key']:<8} {what}  ({s['source']} {s['id']})")
         except Exception as e:
             print(f"::warning::{s['key']}: {e}")
             failures.append(s["key"])
             got = {}
-        full = old.get("full_history", False) or (bool(got) and start == HISTORY_START)
+        full = old.get("full_history", False) or (bool(got) and (start == HISTORY_START or s["source"] == "fred"))
         new_series[s["key"]] = {**meta, "full_history": full, "data": og.merge(old.get("data"), got, 4)}
 
     # one ECB request covers both rates; the full history is fetched until it has succeeded once
