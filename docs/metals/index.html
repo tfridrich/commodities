@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metals prices · copper, iron ore, lithium carbonate · Commodities</title>
-<meta name="description" content="Daily COMEX and SHFE copper, SGX and DCE iron ore and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
+<title>Metals prices · copper, aluminium, iron ore, lithium carbonate · Commodities</title>
+<meta name="description" content="Daily COMEX and SHFE copper, SHFE aluminium, monthly LME copper and aluminium averages, SGX and DCE iron ore and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
@@ -105,9 +105,10 @@ footer a { color: inherit; }
     </div>
   </nav>
   <header>
-    <h1>Copper, iron ore and lithium prices</h1>
+    <h1>Copper, aluminium, iron ore and lithium prices</h1>
     <nav class="tabs" role="tablist" aria-label="Metals">
       <button type="button" role="tab" id="tab-copper" aria-controls="panel-copper" aria-selected="true">Copper</button>
+      <button type="button" role="tab" id="tab-aluminium" aria-controls="panel-aluminium" aria-selected="false" tabindex="-1">Aluminium</button>
       <button type="button" role="tab" id="tab-iron" aria-controls="panel-iron" aria-selected="false" tabindex="-1">Iron ore</button>
       <button type="button" role="tab" id="tab-lithium" aria-controls="panel-lithium" aria-selected="false" tabindex="-1">Lithium carbonate</button>
       <button type="button" role="tab" id="tab-curves" aria-controls="panel-curves" aria-selected="false" tabindex="-1">Forward curves</button>
@@ -115,6 +116,7 @@ footer a { color: inherit; }
   </header>
 
   <div class="panel" id="panel-copper" role="tabpanel" aria-labelledby="tab-copper" data-group="copper"></div>
+  <div class="panel" id="panel-aluminium" role="tabpanel" aria-labelledby="tab-aluminium" data-group="aluminium" hidden></div>
   <div class="panel" id="panel-iron" role="tabpanel" aria-labelledby="tab-iron" data-group="iron" hidden></div>
   <div class="panel" id="panel-lithium" role="tabpanel" aria-labelledby="tab-lithium" data-group="lithium" hidden></div>
   <div class="panel" id="panel-curves" role="tabpanel" aria-labelledby="tab-curves" hidden>
@@ -167,16 +169,16 @@ footer a { color: inherit; }
 
   <ul class="notes full">
     <li>COMEX copper and SGX iron ore are daily closes of the continuous nearby futures contract; when it rolls to the next month the line can show a step. The free source for these goes back to 2016 (COMEX copper) and December 2022 (SGX iron ore). SGX iron ore settles on the average of the Platts 62% Fe index over its delivery month, so during that month part of its price is already fixed and it moves less than the daily index. SHFE, DCE and GFEX prices are the daily settlement prices of the exchange's main (most traded) contract, which is usually three to five months out, so they are not the front month.</li>
-    <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the SGX contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
+    <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts and the LME. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the SGX contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
+    <li>Daily LME prices are licensed and may not be republished, so the LME appears as the IMF's monthly averages of the LME spot price (copper grade A cathode; aluminium 99.5% minimum purity). The IMF publishes them one to two months after the month ends. On the daily and weekly views each month's average is drawn as a flat step. SHFE aluminium is the daily settlement price of the Shanghai main contract (Al 99.70%). There is no free source for the CME aluminium contracts that can be read automatically, and they trade thinly.</li>
     <li>There is no free daily source for lithium prices outside China: the CME and SGX lithium contracts settle against Fastmarkets assessments, which are licensed, and they trade too rarely to give a daily series. GFEX lithium carbonate is the reference contract for China, the largest market.</li>
     <li>Unit conversion: 1 t = 1,000 kg = 2,204.62 lb. Currencies are converted with the ECB euro reference rates (USD and CNY per EUR) of the same day, or the latest day before it.</li>
-    <li>Forward curves are the daily settlement prices of each contract month. They are available for the Chinese exchanges, which list twelve consecutive months; there is no free source for the COMEX and SGX contract months that can be read automatically. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the price on the Copper, Iron ore and Lithium tabs.</li>
-    <li>The LME is the global benchmark for copper, but its prices are licensed and may not be republished, so they are not shown.</li>
+    <li>Forward curves are the daily settlement prices of each contract month. They are available for the Chinese exchanges, which list twelve consecutive months; there is no free source for the COMEX and SGX contract months that can be read automatically. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the exchange's price on the Copper, Aluminium, Iron ore and Lithium tabs.</li>
   </ul>
 
   <footer>
     <p id="updated"></p>
-    <p class="full">Futures prices via Sina Finance; exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
+    <p class="full">Futures prices via Sina Finance; monthly LME averages from the <a href="https://data.imf.org/">IMF Primary Commodity Prices</a> via <a href="https://fred.stlouisfed.org/series/PCOPPUSDM">FRED</a>; exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
   </footer>
 </div>
 
@@ -190,7 +192,8 @@ footer a { color: inherit; }
   // Display per series key. Series that are not in the data file are skipped, so new
   // benchmarks only need an entry here (and in scripts/update_metals.py).
   const LOOK = {
-    comex: { color: '--s1' }, shfe: { color: '--s2' },
+    comex: { color: '--s1' }, shfe: { color: '--s2' }, lme_cu: { color: '--s3', dash: '6 3' },
+    shfe_al: { color: '--s2' }, lme_al: { color: '--s1', dash: '6 3' },
     sgx: { color: '--s1' }, dce: { color: '--s2' },
     gfex: { color: '--s3' },
   };
@@ -205,7 +208,7 @@ footer a { color: inherit; }
     'USD/lb': { ccy: 'USD', q: 0.00045359237, pre: '$', post: '/lb', d: 4 },
     'USD/kg': { ccy: 'USD', q: 0.001, pre: '$', post: '/kg', d: 2 },
   };
-  const UNITS = { copper: ['USD/t', 'USD/lb', 'CNY/t', 'EUR/t'], iron: ['USD/t', 'CNY/t', 'EUR/t'], lithium: ['CNY/t', 'USD/t', 'USD/kg', 'EUR/t'] };
+  const UNITS = { copper: ['USD/t', 'USD/lb', 'CNY/t', 'EUR/t'], aluminium: ['USD/t', 'CNY/t', 'EUR/t'], iron: ['USD/t', 'CNY/t', 'EUR/t'], lithium: ['CNY/t', 'USD/t', 'USD/kg', 'EUR/t'] };
   // Chinese futures include VAT (series field `vat`, e.g. 0.13); shared across all tabs
   const VAT = { ex: params.get('vat') === 'ex' };
   const vatAdj = (s, v) => (v == null || !s.vat || !VAT.ex ? v : v / (1 + s.vat));
@@ -349,7 +352,11 @@ footer a { color: inherit; }
     const spreads = (SPREADS[group] || []).filter((sp) => series.some((s) => s.key === sp.a) && series.some((s) => s.key === sp.b))
       .map((sp) => ({ ...sp, spread: true, off: true }));
     const all = [...series, ...spreads];
-    const dates = [...new Set(series.flatMap((s) => s.dates))].sort();
+    // Monthly series (IMF averages, data keyed YYYY-MM-01) don't add days to the axis: each day
+    // shows the average of its month, which draws a step line next to the daily prices.
+    const isM = (s) => s.freq === 'monthly';
+    const axisSeries = series.some((s) => !isM(s)) ? series.filter((s) => !isM(s)) : series;
+    const dates = [...new Set(axisSeries.flatMap((s) => s.dates))].sort();
     const unitParam = params.get('unit');
     const st = { gran: 'daily', range: '365', unit: UNITS[group].includes(unitParam) ? unitParam : UNITS[group][0],
                  on: Object.fromEntries(all.map((s) => [s.key, !s.off])) };
@@ -358,7 +365,7 @@ footer a { color: inherit; }
     function buildDaily() {
       daily = dates.map((date) => {
         const r = { date };
-        for (const s of series) r[s.key] = conv(vatAdj(s, s.data[date]), s.unit, st.unit, date);
+        for (const s of series) r[s.key] = conv(vatAdj(s, s.data[isM(s) ? date.slice(0, 7) + '-01' : date]), s.unit, st.unit, date);
         for (const sp of spreads) r[sp.key] = r[sp.a] != null && r[sp.b] != null ? r[sp.a] - r[sp.b] : null;
         return r;
       });
@@ -421,18 +428,19 @@ footer a { color: inherit; }
       const rows = series.map((s) => {
         const d = s.dates.at(-1), v = s.data[d], t = toDate(d);
         const back = (days) => lastOnOrBefore(s, iso(new Date(t.getTime() - days * 86400000)));
-        const prev = s.dates.length > 1 ? s.data[s.dates.at(-2)] : null;
+        const prev = !isM(s) && s.dates.length > 1 ? s.data[s.dates.at(-2)] : null;
         const ytd = lastOnOrBefore(s, `${Number(d.slice(0, 4)) - 1}-12-31`);
         const ch = (base) => { const sp = document.createElement('span'); if (base == null || !base) { sp.textContent = '—'; return sp; } const p = (v / base - 1) * 100; sp.textContent = pct(p); sp.className = p > 0 ? 'up' : p < 0 ? 'down' : ''; return sp; };
         const name = document.createElement('span'); name.append(swatch(s), s.label);
         const small = document.createElement('small'); small.textContent = s.desc; name.append(small);
         const big = document.createElement('span'); big.textContent = money(v, s.unit);
-        return [name, big, money(conv(vatAdj(s, v), s.unit, st.unit, d), st.unit), d3.utcFormat('%-d %b')(t), ch(prev), ch(back(7)), ch(back(30)), ch(ytd), ch(back(365))];
+        return [name, big, money(conv(vatAdj(s, v), s.unit, st.unit, d), st.unit), d3.utcFormat(isM(s) ? '%b %Y' : '%-d %b')(t), ch(prev), ch(isM(s) ? null : back(7)), ch(back(30)), ch(ytd), ch(back(365))];
       });
       const tb = simpleTable(q('[data-latest]'), head, rows);
       tb.querySelectorAll('tr').forEach((tr) => tr.cells[1].classList.add('big'));
       q('[data-latest-sub]').textContent = 'Last price in each benchmark\'s own unit and currency as quoted by the exchange' +
-        (series.some((s) => s.vat) ? ' (Chinese prices incl. 13% VAT)' : '') + '. Price changes are in that unit too.';
+        (series.some((s) => s.vat) ? ' (Chinese prices incl. 13% VAT)' : '') + '. Price changes are in that unit too.' +
+        (series.some(isM) ? ' The IMF monthly averages show the latest published month; their "1 month" change is against the month before.' : '');
     }
     function periodTable() {
       const last = dates.at(-1), t = toDate(last), y = Number(last.slice(0, 4));
@@ -461,8 +469,9 @@ footer a { color: inherit; }
     function lede() {
       const L = q('[data-lede]'); L.replaceChildren();
       const b = (t) => Object.assign(document.createElement('b'), { textContent: t });
-      const main = series.filter((s) => s.source !== 'eia');
-      const d = main[0].dates.at(-1);
+      const main = series.filter((s) => s.source !== 'eia' && !isM(s));
+      if (!main.length) return;
+      const d = main.map((s) => s.dates.at(-1)).sort().at(-1);
       L.append(`Latest prices, ${dayFmt(toDate(d))}: `);
       main.forEach((s, i) => {
         const dd = s.dates.at(-1), v = s.data[dd], p = s.dates.length > 1 ? (v / s.data[s.dates.at(-2)] - 1) * 100 : null;
