@@ -170,11 +170,12 @@ footer a { color: inherit; }
     <li>Forward curves are the daily settlement prices of each NYMEX contract month. Yahoo Finance lists only some of the later months (Brent in particular), and contracts that have expired drop out, so older curves start later. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the front-month price from the Crude oil and Natural gas tabs; the flat bars are the actual yearly averages for past years and the Cal strips for the years ahead.</li>
     <li>No forward curve is shown for TTF and NBP: the exchanges that host them (ICE Endex, EEX) license their settlement prices and do not allow automated republication.</li>
     <li>Spot prices marked "EIA" are the US Energy Information Administration's daily spot assessments. They appear once a week, a few days after the trading day.</li>
+    <li>LNG: the Asian benchmark JKM (S&amp;P Global Platts) and the CME futures on it are licensed, and ACER's daily EU LNG assessment does not allow automated downloads, so LNG is shown as two free monthly prices. "LNG Asia" is the IMF's series for Japan's average LNG import price, which is mostly long-term contracts linked to oil prices, so it follows Brent with a delay rather than the spot market. "US LNG exports" is the EIA's average price of US LNG at the export terminal (before shipping), converted from USD per thousand cubic feet at 1.037 MMBtu/Mcf. Both appear one to a few months after the month ends and are drawn as a flat step for each month.</li>
   </ul>
 
   <footer>
     <p id="updated"></p>
-    <p class="full">Futures prices via Yahoo Finance; when Yahoo is unavailable, WTI and Henry Hub front-month settlements come from the <a href="https://www.eia.gov/opendata/">EIA Open Data API</a>, which also provides the spot prices. Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
+    <p class="full">Futures prices via Yahoo Finance; when Yahoo is unavailable, WTI and Henry Hub front-month settlements come from the <a href="https://www.eia.gov/opendata/">EIA Open Data API</a>, which also provides the spot prices. Monthly Asian LNG prices from the <a href="https://data.imf.org/">IMF Primary Commodity Prices</a> via <a href="https://fred.stlouisfed.org/series/PNGASJPUSDM">FRED</a>. Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
   </footer>
 </div>
 
@@ -192,6 +193,7 @@ footer a { color: inherit; }
     brent_spot: { color: '--s1', dash: '5 3', off: true }, wti_spot: { color: '--s2', dash: '5 3', off: true },
     ttf: { color: '--s1' }, nbp: { color: '--s3' }, hh: { color: '--s2' },
     hh_spot: { color: '--s2', dash: '5 3', off: true },
+    lng_asia: { color: '--s4', dash: '6 3' }, lng_us: { color: '--s5', dash: '6 3' },
   };
   const SPREADS = {
     oil: [{ key: 'brent_wti', label: 'Brent – WTI', a: 'brent', b: 'wti', color: '--s4' }],
@@ -347,7 +349,11 @@ footer a { color: inherit; }
     const spreads = (SPREADS[group] || []).filter((sp) => series.some((s) => s.key === sp.a) && series.some((s) => s.key === sp.b))
       .map((sp) => ({ ...sp, spread: true, off: true }));
     const all = [...series, ...spreads];
-    const dates = [...new Set(series.flatMap((s) => s.dates))].sort();
+    // Monthly series (data keyed YYYY-MM-01) don't add days to the axis: each day shows the
+    // value of its month, which draws a step line next to the daily prices.
+    const isM = (s) => s.freq === 'monthly';
+    const axisSeries = series.some((s) => !isM(s)) ? series.filter((s) => !isM(s)) : series;
+    const dates = [...new Set(axisSeries.flatMap((s) => s.dates))].sort();
     const unitParam = params.get('unit');
     const st = { gran: 'daily', range: '365', unit: UNITS[group].includes(unitParam) ? unitParam : UNITS[group][0],
                  on: Object.fromEntries(all.map((s) => [s.key, !s.off])) };
@@ -356,7 +362,7 @@ footer a { color: inherit; }
     function buildDaily() {
       daily = dates.map((date) => {
         const r = { date };
-        for (const s of series) r[s.key] = conv(s.data[date], s.unit, st.unit, date);
+        for (const s of series) r[s.key] = conv(s.data[isM(s) ? date.slice(0, 7) + '-01' : date], s.unit, st.unit, date);
         for (const sp of spreads) r[sp.key] = r[sp.a] != null && r[sp.b] != null ? r[sp.a] - r[sp.b] : null;
         return r;
       });
@@ -413,17 +419,18 @@ footer a { color: inherit; }
       const rows = series.map((s) => {
         const d = s.dates.at(-1), v = s.data[d], t = toDate(d);
         const back = (days) => lastOnOrBefore(s, iso(new Date(t.getTime() - days * 86400000)));
-        const prev = s.dates.length > 1 ? s.data[s.dates.at(-2)] : null;
+        const prev = !isM(s) && s.dates.length > 1 ? s.data[s.dates.at(-2)] : null;
         const ytd = lastOnOrBefore(s, `${Number(d.slice(0, 4)) - 1}-12-31`);
         const ch = (base) => { const sp = document.createElement('span'); if (base == null || !base) { sp.textContent = '—'; return sp; } const p = (v / base - 1) * 100; sp.textContent = pct(p); sp.className = p > 0 ? 'up' : p < 0 ? 'down' : ''; return sp; };
         const name = document.createElement('span'); name.append(swatch(s), s.label);
         const small = document.createElement('small'); small.textContent = s.desc; name.append(small);
         const big = document.createElement('span'); big.textContent = money(v, s.unit);
-        return [name, big, money(conv(v, s.unit, st.unit, d), st.unit), d3.utcFormat('%-d %b')(t), ch(prev), ch(back(7)), ch(back(30)), ch(ytd), ch(back(365))];
+        return [name, big, money(conv(v, s.unit, st.unit, d), st.unit), d3.utcFormat(isM(s) ? '%b %Y' : '%-d %b')(t), ch(prev), ch(isM(s) ? null : back(7)), ch(back(30)), ch(ytd), ch(back(365))];
       });
       const tb = simpleTable(q('[data-latest]'), head, rows);
       tb.querySelectorAll('tr').forEach((tr) => tr.cells[1].classList.add('big'));
-      q('[data-latest-sub]').textContent = 'Price changes are in each benchmark\'s own unit and currency.';
+      q('[data-latest-sub]').textContent = 'Price changes are in each benchmark\'s own unit and currency.' +
+        (series.some(isM) ? ' Monthly LNG prices show the latest published month; their "1 month" change is against the month before.' : '');
     }
     function periodTable() {
       const last = dates.at(-1), t = toDate(last), y = Number(last.slice(0, 4));
@@ -451,7 +458,8 @@ footer a { color: inherit; }
     function lede() {
       const L = q('[data-lede]'); L.replaceChildren();
       const b = (t) => Object.assign(document.createElement('b'), { textContent: t });
-      const main = series.filter((s) => s.source !== 'eia');
+      const main = series.filter((s) => s.source !== 'eia' && !isM(s));
+      if (!main.length) return;
       const d = main.map((s) => s.dates.at(-1)).sort().at(-1);
       L.append(`Closing prices on ${dayFmt(toDate(d))}: `);
       main.forEach((s, i) => {
