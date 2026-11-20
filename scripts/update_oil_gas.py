@@ -40,6 +40,7 @@ Only the Python standard library is used.
 import argparse
 import datetime as dt
 import json
+import re
 import os
 import sys
 import time
@@ -81,6 +82,13 @@ SERIES = [
          id="RWTC", route="petroleum/pri/spt", desc="Cushing, OK WTI spot price FOB, EIA"),
     dict(key="hh_spot", group="gas", label="Henry Hub spot (EIA)", unit="USD/MMBtu", source="eia",
          id="RNGWHHD", route="natural-gas/pri/fut", desc="Henry Hub natural gas spot price, EIA"),
+    # Monthly LNG prices (free and public; daily LNG benchmarks such as JKM are licensed)
+    dict(key="lng_asia", group="gas", label="LNG Asia (IMF monthly)", unit="USD/MMBtu", source="fred",
+         id="PNGASJPUSDM", freq="monthly",
+         desc="IMF price of LNG in Asia: Japan's average LNG import price, mostly long-term oil-linked contracts; monthly, published one to two months later"),
+    dict(key="lng_us", group="gas", label="US LNG exports (EIA monthly)", unit="USD/MMBtu", source="eia_series",
+         id="NG.N9133US3.M", scale=1 / 1.037, freq="monthly",
+         desc="Average price of US LNG exports at the export terminal (EIA), converted from USD per thousand cubic feet at 1.037 MMBtu/Mcf; monthly, published a few months later"),
 ]
 FX = [dict(key="EURUSD", id="EURUSD=X"), dict(key="GBPUSD", id="GBPUSD=X")]
 
@@ -227,6 +235,37 @@ def fetch_eia(route, series_id, start, key):
         offset += len(rows)
         if not rows or offset >= int(body.get("total", 0)):
             return out
+
+
+def fetch_eia_series(series_id, key, scale=1.0):
+    """A whole EIA series by its ID (e.g. NG.N9133US3.M) -> {"YYYY-MM-01": value}."""
+    url = f"https://api.eia.gov/v2/seriesid/{series_id}?" + urllib.parse.urlencode({"api_key": key})
+    out = {}
+    for r in get_json(url)["response"].get("data", []):
+        v, d = r.get("value"), str(r.get("period", ""))
+        if v in (None, "") or not re.fullmatch(r"\d{4}-\d{2}(-\d{2})?", d):
+            continue
+        out[d if len(d) == 10 else d + "-01"] = round(float(v) * scale, 4)
+    return out
+
+
+def fetch_fred(series_id):
+    """A whole FRED series as CSV (no key needed) -> {"YYYY-MM-DD": value}."""
+    req = urllib.request.Request(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}",
+                                 headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        text = r.read().decode("utf-8", errors="replace")
+    lines = text.strip().splitlines()
+    if not lines or series_id not in lines[0]:
+        raise RuntimeError("FRED returned an unexpected page: " + text[:80].replace("\n", " "))
+    out = {}
+    for line in lines[1:]:
+        d, _, v = line.partition(",")
+        try:
+            out[d.strip()] = round(float(v), 4)
+        except ValueError:
+            pass          # '.' marks a missing month
+    return out
 
 
 def last_settled_day(now_utc=None):
@@ -413,6 +452,24 @@ def update_prices(args, today):
     for s in SERIES:
         old = store.get("series", {}).get(s["key"], {})
         meta = {k: s[k] for k in ("group", "label", "unit", "source", "id", "desc")}
+        if s.get("freq"):
+            meta["freq"] = s["freq"]
+        if s["source"] in ("fred", "eia_series"):      # small monthly series: re-read whole each run
+            try:
+                if s["source"] == "fred":
+                    got = fetch_fred(s["id"])
+                elif eia_key:
+                    got = fetch_eia_series(s["id"], eia_key, s.get("scale", 1.0))
+                else:
+                    got = {}
+                if got:
+                    print(f"{s['key']:<11} {len(got):>5} months  ({s['source']} {s['id']})")
+            except Exception as e:
+                print(f"::warning::{s['key']}: {e}")
+                got = {}
+            if got or old:
+                new_series[s["key"]] = {**meta, "full_history": True, "data": merge(old.get("data"), got, 4)}
+            continue
         if s["source"] == "eia" and not eia_key:
             if old:            # keep what was fetched earlier
                 new_series[s["key"]] = old
