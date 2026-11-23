@@ -458,7 +458,7 @@ td.tot, th.tot { font-weight: 600; }
 
   <footer id="power-foot">
     <p id="updated"></p>
-    <p class="full">All data from the <a href="https://transparency.entsoe.eu/">ENTSO-E Transparency Platform</a>: the SDAC day-ahead auction for the AT and DE-LU bidding zones, and the balancing data of the Austrian and German grid operators. Delivery days follow Central European time; daylight-saving days have 23 or 25 hours.</p>
+    <p class="full">Data from the <a href="https://transparency.entsoe.eu/">ENTSO-E Transparency Platform</a>: the SDAC day-ahead auction for the AT and DE-LU bidding zones, and the balancing data of the Austrian and German grid operators. Day-ahead days that ENTSO-E has not published are filled from <a href="https://www.smard.de/">SMARD.de</a> or <a href="https://energy-charts.info/">Energy-Charts</a> (Fraunhofer ISE), data © Bundesnetzagentur | SMARD.de, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Delivery days follow Central European time; daylight-saving days have 23 or 25 hours.</p>
   </footer>
 </div>
 
@@ -928,7 +928,7 @@ td.tot, th.tot { font-weight: 600; }
     const ys = d3.range(Number(from.slice(0, 4)), Number(to.slice(0, 4)) + 1);
     const files = await Promise.all(ys.map((y) => loadYear(zone, y)));
     const out = [];
-    for (const f of files) for (const [date, [minutes, prices]] of Object.entries(f.days)) if (date >= from && date <= to) out.push({ date, minutes, prices });
+    for (const f of files) for (const [date, [minutes, prices]] of Object.entries(f.days)) if (date >= from && date <= to) out.push({ date, minutes, prices, source: f.filled?.[date] || null });
     return out.sort((a, b) => (a.date < b.date ? -1 : 1));
   }
   const addDays = (s, n) => new Date(toDate(s).getTime() + n * 86400000).toISOString().slice(0, 10);
@@ -1007,10 +1007,31 @@ td.tot, th.tot { font-weight: 600; }
       const lastDay = d3.max(MARKETS, (m) => grouped[m.key].daily.at(-1)?.key);
       const from = addDays(lastDay, -(rst.n - 1));
       const sets = await Promise.all(MARKETS.map((m) => getDays(m.key, from, lastDay)));
+      // Days ENTSO-E has not published (or only in part) are not stored: break the line there
+      // instead of joining the neighbouring days, and name them below the chart.
+      const have = MARKETS.map((m, mi) => new Set(sets[mi].map((d) => d.date)));
       const lines = MARKETS.map((m, mi) => ({ m, rows: sets[mi].flatMap((d) => {
         const t0 = midnight(d.date);
-        return d.prices.map((p, i) => { const x = new Date(t0 + i * d.minutes * 60000); return { x, price: p, label: vTip.format(x) }; });
+        const pts = d.prices.map((p, i) => { const x = new Date(t0 + i * d.minutes * 60000); return { x, price: p, label: vTip.format(x) }; });
+        const next = addDays(d.date, 1);
+        if (next <= lastDay && !have[mi].has(next)) pts.push({ x: new Date(midnight(next)), price: null, label: '' });
+        return pts;
       }) }));
+      const gaps = MARKETS.map((m, mi) => {
+        const miss = d3.range(rst.n).map((i) => addDays(from, i)).filter((d) => !have[mi].has(d));
+        return miss.length ? `${m.name}: ${miss.map((d) => vDay.format(new Date(midnight(d) + 12 * 3600e3))).join(', ')}` : '';
+      }).filter(Boolean);
+      let note = el.parentElement.querySelector('.gap-note');
+      if (!note) { note = document.createElement('p'); note.className = 'sub gap-note'; (el.parentElement.querySelector('[data-legend]') || el).after(note); }
+      const filledTxt = MARKETS.map((m, mi) => {
+        const f = sets[mi].filter((d) => d.source);
+        return f.length ? `${m.name} ${f.map((d) => vDay.format(new Date(midnight(d.date) + 12 * 3600e3))).join(', ')} from ${[...new Set(f.map((d) => d.source))].join(' and ')}` : '';
+      }).filter(Boolean);
+      const parts = [];
+      if (filledTxt.length) parts.push(`Not published by ENTSO-E, taken instead from SMARD/Energy-Charts (Bundesnetzagentur | SMARD.de): ${filledTxt.join('; ')}.`);
+      if (gaps.length) parts.push(`No complete prices published yet for ${gaps.join('; ')}.`);
+      note.textContent = parts.join(' ');
+      note.hidden = !parts.length;
       const dayStarts = d3.range(rst.n).map((i) => new Date(midnight(addDays(from, i))));
       lineChart(el, { lines, series: [['price', 'Price', '--tb1']], unit: '€/MWh', dayStarts, dayLabel: (d) => vDay.format(d),
         label: `Day-ahead prices for the last ${rst.n} delivery days, Austria solid and Germany-Luxembourg dashed` });
