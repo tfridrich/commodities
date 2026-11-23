@@ -1,5 +1,6 @@
 """
-Daily update of copper, aluminium, iron ore and lithium carbonate prices for the metals page (docs/metals/).
+Daily update of copper, aluminium, iron ore, lithium carbonate, gold and silver prices for the
+metals page (docs/metals/).
 
 Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Finance does not)
   - Sina Finance global futures API: daily closes of the continuous contracts
@@ -8,6 +9,9 @@ Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Fin
   - Sina Finance futures API: daily settlement prices of the Chinese exchanges
         Copper     CU0     CNY/t     SHFE copper, main (most active) contract
         Aluminium  AL0     CNY/t     SHFE primary aluminium, main contract
+        Gold       AU0     CNY/g     SHFE gold, main contract (no VAT: gold traded on exchange is VAT-exempt)
+        Silver     AG0     CNY/kg    SHFE silver, main contract, incl. 13% VAT
+        COMEX      GC, SI  USD/oz    COMEX gold and silver, continuous nearby futures (global feed)
         Iron ore   I0      CNY/t     DCE iron ore 62% Fe fines, main contract
         Lithium    LC0     CNY/t     GFEX battery-grade lithium carbonate, main contract
     and their forward curves from the individual contract months (CU2701, AL2701, I2705, LC2707, ...).
@@ -69,6 +73,17 @@ SERIES = [
     dict(key="lme_al", group="aluminium", label="LME aluminium (IMF monthly)", unit="USD/t", source="fred", id="PALUMUSDM",
          freq="monthly",
          desc="IMF global price of aluminium: monthly average of the LME 99.5% minimum purity spot price, published one to two months later"),
+    dict(key="comex_au", group="gold", label="COMEX gold", unit="USD/oz", source="sina_global", id="GC",
+         tz="America/New_York", settled_hour=17, expect=(500, 20000),
+         desc="COMEX gold, continuous nearby futures, daily close, USD per troy ounce"),
+    dict(key="shfe_au", group="gold", label="SHFE gold", unit="CNY/g", source="sina", id="AU0", expect=(100, 5000),
+         desc="Shanghai Futures Exchange gold (Au 99.95%), main contract, settlement price, CNY per gram; no VAT"),
+    dict(key="comex_ag", group="silver", label="COMEX silver", unit="USD/oz", source="sina_global", id="SI",
+         tz="America/New_York", settled_hour=17, expect=(3, 500),
+         desc="COMEX silver, continuous nearby futures, daily close, USD per troy ounce"),
+    dict(key="shfe_ag", group="silver", label="SHFE silver", unit="CNY/kg", source="sina", id="AG0", vat=CN_VAT,
+         expect=(1000, 200000),
+         desc="Shanghai Futures Exchange silver (Ag 99.99%), main contract, settlement price incl. 13% VAT, CNY per kg"),
     dict(key="sgx", group="iron", label="SGX iron ore 62%", unit="USD/t", source="sina_global", id="FEF",
          tz="Asia/Singapore", settled_hour=20,
          desc="SGX iron ore 62% Fe CFR China futures, continuous nearby contract, daily close, USD per dry tonne"),
@@ -90,6 +105,11 @@ CURVES = [
          monthly=13, dec_years=0, desc="SHFE copper futures (CU), settlement prices incl. 13% VAT"),
     dict(key="shfe_al", group="aluminium", label="SHFE aluminium", unit="CNY/t", source="sina", root="AL", vat=CN_VAT,
          monthly=13, dec_years=0, desc="SHFE aluminium futures (AL), settlement prices incl. 13% VAT"),
+    dict(key="shfe_au", group="gold", label="SHFE gold", unit="CNY/g", source="sina", root="AU", expect=(100, 5000),
+         monthly=13, dec_years=0, desc="SHFE gold futures (AU), settlement prices, CNY per gram; no VAT"),
+    dict(key="shfe_ag", group="silver", label="SHFE silver", unit="CNY/kg", source="sina", root="AG", vat=CN_VAT,
+         expect=(1000, 200000), monthly=13, dec_years=0,
+         desc="SHFE silver futures (AG), settlement prices incl. 13% VAT, CNY per kg"),
     dict(key="dce", group="iron", label="DCE iron ore", unit="CNY/t", source="sina", root="I", vat=CN_VAT,
          monthly=13, dec_years=0, desc="DCE iron ore futures (I), settlement prices incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", root="LC", vat=CN_VAT,
@@ -176,6 +196,20 @@ def parse_sina(text, now_utc=None, tz=CN_TZ, settled_hour=CN_SETTLED_HOUR, scale
             continue
         out[d] = round(v * scale, 6)
     return out
+
+
+def plausible(spec, got, what):
+    """Drop a download whose typical price is outside the series' expected range (wrong symbol
+    or unit), so it never reaches the page. Returns `got` or {}."""
+    rng = spec.get("expect")
+    if not rng or not got:
+        return got
+    vals = sorted(got.values())
+    med = vals[len(vals) // 2]
+    if rng[0] <= med <= rng[1]:
+        return got
+    print(f"::warning::{what}: typical price {med:g} is outside the expected {rng[0]:g}-{rng[1]:g} {spec['unit']} - not used")
+    return {}
 
 
 def fetch_sina(symbol, start, pause=0.5, spec=None):
@@ -270,6 +304,7 @@ def update_prices(args, today):
                 got = fetch_sina(s["id"], start, spec=s)
             else:
                 got = fetch_sina(s["id"], start)
+            got = plausible(s, got, s["key"])
             what = f"{len(got):>5} months" if s.get("freq") == "monthly" else f"{len(got):>5} days from {start}"
             print(f"{s['key']:<8} {what}  ({s['source']} {s['id']})")
         except Exception as e:
@@ -369,6 +404,7 @@ def update_curves(today, full=False):
                     got = og.fetch_yahoo(sym, start, today, missing_ok=True, pause=0.3)
                 else:
                     got = fetch_sina(sym, start, pause=0.3)
+                got = plausible(c, got, f"{c['key']} {ym}")
             except og.SourceBlocked as e:
                 print(f"::error::{c['key']} forward curve not updated: {e}. The stored curve is kept.")
                 blocked.add(c["source"])
