@@ -10,6 +10,13 @@ From the ENTSO-E Transparency Platform API it fetches:
 
 and merges the results into the JSON files in docs/data/, which the web page reads.
 
+Day-ahead days that ENTSO-E has not published (or only in part) are filled from two public
+sources of the same SDAC auction results, both CC BY 4.0, Bundesnetzagentur | SMARD.de:
+  1. SMARD.de (Bundesnetzagentur) chart data           - Germany-Luxembourg
+  2. Energy-Charts API (Fraunhofer ISE), api.energy-charts.info - Germany-Luxembourg and Austria
+Each run checks the last FALLBACK_LOOKBACK_DAYS days. Filled days are marked in the price files
+("filled": {date: source}); the mark is removed once ENTSO-E publishes the day itself.
+
 Usage:
     ENTSOE_API_KEY=... python scripts/update_tb.py                    # refresh recent days
     ENTSOE_API_KEY=... python scripts/update_tb.py --since 2024-01-01 # rebuild from a date
@@ -44,6 +51,9 @@ NATIVE_15MIN_FROM = dt.date(2025, 10, 1)  # SDAC trades 15-minute products from 
 REFRESH_DAYS = 5      # re-fetch the last few stored days in case ENTSO-E corrected them
 RECENT_DAYS = 8       # days kept at full resolution for the "latest days" chart
 BALANCING_START = dt.date(2024, 1, 1)
+FALLBACK_LOOKBACK_DAYS = 45   # look this far back for missing day-ahead days
+SMARD_SERIES = {"DE_LU": ("4169", "DE-LU")}          # filter id, region: day-ahead price, EUR/MWh
+ENERGY_CHARTS_BZN = {"DE_LU": "DE-LU", "AT": "AT"}
 RESOLUTION_MIN = {"PT15M": 15, "PT30M": 30, "PT60M": 60, "PT4H": 240, "P1D": 1440}
 
 # Bidding zones for day-ahead prices
@@ -202,6 +212,11 @@ def fetch_day_ahead(token, zone, first_day, last_day):
         xml = fetch_xml(token, {"documentType": "A44", "in_Domain": eic, "out_Domain": eic,
                                 "periodStart": start.strftime("%Y%m%d%H%M"), "periodEnd": end.strftime("%Y%m%d%H%M")})
         native.update(parse_native(xml))
+    return tb_from_native(native, first_day, last_day), native
+
+
+def tb_from_native(native, first_day, last_day):
+    """TB rows for the complete delivery days in `native` between first_day and last_day."""
     hours = defaultdict(list)
     for t, p in native.items():
         hours[t.replace(minute=0)].append(p)
@@ -217,7 +232,120 @@ def fetch_day_ahead(token, zone, first_day, last_day):
         mean = lambda a: sum(a) / len(a)
         # row: date, TB1, TB2, TB4, average price, TB3 (TB3 added later, so it sits at the end)
         tb[d.isoformat()] = [d.isoformat()] + [round(mean(s[-x:]) - mean(s[:x]), 2) for x in (1, 2, 4)] + [round(mean(s), 2), round(mean(s[-3:]) - mean(s[:3]), 2)]
-    return tb, native
+    return tb
+
+
+# ---------------------------------------------------------------- fallback for missing day-ahead days
+
+def http_json(url, timeout=60):
+    req = urllib.request.Request(url, headers={"User-Agent": "commodities-site-updater (github.com/tfridrich/commodities)",
+                                               "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def day_is_complete(slots, d):
+    """slots: sorted [(utc datetime, price)] of one delivery day."""
+    if not slots:
+        return False
+    start, end = day_bounds_utc(d, d)
+    step = min((b[0] - a[0]).total_seconds() / 60 for a, b in zip(slots, slots[1:])) if len(slots) > 1 else 60
+    return len(slots) * step / 60 >= (end - start).total_seconds() / 3600
+
+
+def slots_by_day(native):
+    out = defaultdict(list)
+    for t, p in native.items():
+        out[t.astimezone(MARKET_TZ).date()].append((t, p))
+    for v in out.values():
+        v.sort()
+    return out
+
+
+_smard_cache = {}
+
+
+def fetch_smard(zone, d):
+    if zone not in SMARD_SERIES:
+        return {}
+    filt, region = SMARD_SERIES[zone]
+    base = f"https://www.smard.de/app/chart_data/{filt}/{region}/"
+    if (zone, "index") not in _smard_cache:
+        _smard_cache[(zone, "index")] = sorted(http_json(base + "index_quarterhour.json")["timestamps"])
+    start, end = day_bounds_utc(d, d)
+    s_ms, e_ms = start.timestamp() * 1000, end.timestamp() * 1000
+    out = {}
+    for ts in [t for t in _smard_cache[(zone, "index")] if t < e_ms][-2:]:      # the week file(s) holding the day
+        if (zone, ts) not in _smard_cache:
+            _smard_cache[(zone, ts)] = http_json(base + f"{filt}_{region}_quarterhour_{ts}.json")["series"]
+        for ms, p in _smard_cache[(zone, ts)]:
+            if p is not None and s_ms <= ms < e_ms:
+                out[dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc)] = float(p)
+    return out
+
+
+def fetch_energy_charts(zone, d):
+    if zone not in ENERGY_CHARTS_BZN:
+        return {}
+    start, end = day_bounds_utc(d, d)
+    q = urllib.parse.urlencode({"bzn": ENERGY_CHARTS_BZN[zone],
+                                "start": start.astimezone(MARKET_TZ).isoformat(timespec="minutes"),
+                                "end": (end - dt.timedelta(minutes=15)).astimezone(MARKET_TZ).isoformat(timespec="minutes")})
+    j = http_json("https://api.energy-charts.info/price?" + q)
+    if "EUR" not in str(j.get("unit", "EUR")) or "MWh" not in str(j.get("unit", "MWh")):
+        raise ValueError(f"unexpected unit {j.get('unit')!r}")
+    out = {}
+    for u, p in zip(j.get("unix_seconds", []), j.get("price", [])):
+        t = dt.datetime.fromtimestamp(u, dt.timezone.utc)
+        if p is not None and start <= t < end:
+            out[t] = float(p)
+    return out
+
+
+FALLBACKS = [("SMARD", fetch_smard), ("Energy-Charts", fetch_energy_charts)]
+
+
+def fill_missing_days(zone, native, today, stored_dates):
+    """Fill delivery days that ENTSO-E has not published completely. Updates `native` in place
+    and returns {date_str: source} for the days filled."""
+    now_local = dt.datetime.now(MARKET_TZ)
+    last = today + dt.timedelta(days=1 if now_local.hour >= 14 else 0)   # tomorrow's auction is out ~13:00 CET
+    by_day = slots_by_day(native)
+    filled = {}
+    d = today - dt.timedelta(days=FALLBACK_LOOKBACK_DAYS)
+    while d <= last:
+        if not day_is_complete(by_day.get(d), d) and d.isoformat() not in stored_dates:
+            for name, fetch in FALLBACKS:
+                try:
+                    got = fetch(zone, d)
+                except Exception as e:
+                    print(f"::warning::day-ahead {zone} {d}: {name} failed ({e})")
+                    continue
+                if day_is_complete(sorted(got.items()), d):
+                    native.update(got)
+                    filled[d.isoformat()] = name
+                    print(f"day-ahead {zone} {d}: missing at ENTSO-E, filled from {name} ({len(got)} prices)")
+                    break
+            else:
+                if d < today:
+                    print(f"::warning::day-ahead {zone} {d}: not published by ENTSO-E, SMARD or Energy-Charts yet")
+        d += dt.timedelta(days=1)
+    return filled
+
+
+def mark_sources(zone, filled, entsoe_days):
+    """Record which stored days came from a fallback source; drop the mark once ENTSO-E has the day."""
+    for f in PRICE_DIR.glob(f"{zone}_*.json"):
+        data = json.loads(f.read_text())
+        marks = data.get("filled", {})
+        new = {d: src for d, src in marks.items() if d not in entsoe_days}
+        new.update({d: src for d, src in filled.items() if d in data["days"]})
+        if new != marks:
+            if new:
+                data["filled"] = dict(sorted(new.items()))
+            else:
+                data.pop("filled", None)
+            f.write_text(json.dumps(data, separators=(",", ":")))
 
 
 # ---------------------------------------------------------------- price history and statistics
@@ -429,7 +557,15 @@ def main():
         if upgrade:
             first = min(first, upgrade)
         new_tb, native = fetch_day_ahead(token, zone, first, last_day)
-        changed += store_prices(zone, native, first, last_day)
+        entsoe_days = {d.isoformat() for d, sl in slots_by_day(native).items() if day_is_complete(sl, d)}
+        filled = fill_missing_days(zone, native, today, set(load_prices(zone)))
+        if filled:
+            first_filled = dt.date.fromisoformat(min(filled))
+            new_tb.update(tb_from_native(native, first_filled, last_day))
+            changed += store_prices(zone, native, min(first, first_filled), last_day)
+        else:
+            changed += store_prices(zone, native, first, last_day)
+        mark_sources(zone, filled, entsoe_days)
         stats["markets"][zone] = compute_stats(zone)
         for d, row in new_tb.items():
             if tb_rows.get(d) != row:
