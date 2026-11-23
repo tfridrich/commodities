@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metals prices · copper, aluminium, iron ore, lithium carbonate · Commodities</title>
-<meta name="description" content="Daily COMEX and SHFE copper, SHFE aluminium, monthly LME copper and aluminium averages, SGX and DCE iron ore and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
+<title>Metals prices · copper, aluminium, iron ore, lithium carbonate, gold, silver · Commodities</title>
+<meta name="description" content="Daily COMEX and SHFE copper, SHFE aluminium, monthly LME copper and aluminium averages, SGX and DCE iron ore, COMEX and SHFE gold and silver and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
@@ -105,12 +105,14 @@ footer a { color: inherit; }
     </div>
   </nav>
   <header>
-    <h1>Copper, aluminium, iron ore and lithium prices</h1>
+    <h1>Metals prices</h1>
     <nav class="tabs" role="tablist" aria-label="Metals">
       <button type="button" role="tab" id="tab-copper" aria-controls="panel-copper" aria-selected="true">Copper</button>
       <button type="button" role="tab" id="tab-aluminium" aria-controls="panel-aluminium" aria-selected="false" tabindex="-1">Aluminium</button>
       <button type="button" role="tab" id="tab-iron" aria-controls="panel-iron" aria-selected="false" tabindex="-1">Iron ore</button>
       <button type="button" role="tab" id="tab-lithium" aria-controls="panel-lithium" aria-selected="false" tabindex="-1">Lithium carbonate</button>
+      <button type="button" role="tab" id="tab-gold" aria-controls="panel-gold" aria-selected="false" tabindex="-1">Gold</button>
+      <button type="button" role="tab" id="tab-silver" aria-controls="panel-silver" aria-selected="false" tabindex="-1">Silver</button>
       <button type="button" role="tab" id="tab-curves" aria-controls="panel-curves" aria-selected="false" tabindex="-1">Forward curves</button>
     </nav>
   </header>
@@ -119,6 +121,8 @@ footer a { color: inherit; }
   <div class="panel" id="panel-aluminium" role="tabpanel" aria-labelledby="tab-aluminium" data-group="aluminium" hidden></div>
   <div class="panel" id="panel-iron" role="tabpanel" aria-labelledby="tab-iron" data-group="iron" hidden></div>
   <div class="panel" id="panel-lithium" role="tabpanel" aria-labelledby="tab-lithium" data-group="lithium" hidden></div>
+  <div class="panel" id="panel-gold" role="tabpanel" aria-labelledby="tab-gold" data-group="gold" hidden></div>
+  <div class="panel" id="panel-silver" role="tabpanel" aria-labelledby="tab-silver" data-group="silver" hidden></div>
   <div class="panel" id="panel-curves" role="tabpanel" aria-labelledby="tab-curves" hidden>
     <p class="lede" data-lede>Loading the forward curves…</p>
     <div class="hero">
@@ -169,11 +173,12 @@ footer a { color: inherit; }
 
   <ul class="notes full">
     <li>COMEX copper and SGX iron ore are daily closes of the continuous nearby futures contract; when it rolls to the next month the line can show a step. The free source for these goes back to 2016 (COMEX copper) and December 2022 (SGX iron ore). SGX iron ore settles on the average of the Platts 62% Fe index over its delivery month, so during that month part of its price is already fixed and it moves less than the daily index. SHFE, DCE and GFEX prices are the daily settlement prices of the exchange's main (most traded) contract, which is usually three to five months out, so they are not the front month.</li>
-    <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts and the LME. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the SGX contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
+    <li>Gold and silver: COMEX prices are daily closes of the continuous nearby futures in USD per troy ounce (31.1035 g). SHFE gold is quoted in CNY per gram and carries no VAT, because gold traded on a Chinese exchange is exempt; SHFE silver is quoted in CNY per kg and includes 13% VAT like the other Chinese contracts. The "Shanghai premium" spread shows how far Chinese prices sit above (or below) COMEX in the chosen unit; for silver, switch to "excl. VAT" to compare like with like. The London benchmarks (LBMA Gold and Silver Price) are licensed by ICE Benchmark Administration and the LBMA and are not shown.</li>
+    <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT (except SHFE gold) and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts and the LME. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the SGX contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
     <li>Daily LME prices are licensed and may not be republished, so the LME appears as the IMF's monthly averages of the LME spot price (copper grade A cathode; aluminium 99.5% minimum purity). The IMF publishes them one to two months after the month ends. On the daily and weekly views each month's average is drawn as a flat step. SHFE aluminium is the daily settlement price of the Shanghai main contract (Al 99.70%). There is no free source for the CME aluminium contracts that can be read automatically, and they trade thinly.</li>
     <li>There is no free daily source for lithium prices outside China: the CME and SGX lithium contracts settle against Fastmarkets assessments, which are licensed, and they trade too rarely to give a daily series. GFEX lithium carbonate is the reference contract for China, the largest market.</li>
-    <li>Unit conversion: 1 t = 1,000 kg = 2,204.62 lb. Currencies are converted with the ECB euro reference rates (USD and CNY per EUR) of the same day, or the latest day before it.</li>
-    <li>Forward curves are the daily settlement prices of each contract month. They are available for the Chinese exchanges, which list twelve consecutive months; there is no free source for the COMEX and SGX contract months that can be read automatically. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the exchange's price on the Copper, Aluminium, Iron ore and Lithium tabs.</li>
+    <li>Unit conversion: 1 t = 1,000 kg = 2,204.62 lb; 1 troy ounce = 31.1035 g. Currencies are converted with the ECB euro reference rates (USD and CNY per EUR) of the same day, or the latest day before it.</li>
+    <li>Forward curves are the daily settlement prices of each contract month. They are available for the Chinese exchanges, which list twelve consecutive months; there is no free source for the COMEX and SGX contract months that can be read automatically. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the exchange's price on the metal's own tab.</li>
   </ul>
 
   <footer>
@@ -194,11 +199,14 @@ footer a { color: inherit; }
   const LOOK = {
     comex: { color: '--s1' }, shfe: { color: '--s2' }, lme_cu: { color: '--s3', dash: '6 3' },
     shfe_al: { color: '--s2' }, lme_al: { color: '--s1', dash: '6 3' },
+    comex_au: { color: '--s1' }, shfe_au: { color: '--s2' }, comex_ag: { color: '--s1' }, shfe_ag: { color: '--s2' },
     sgx: { color: '--s1' }, dce: { color: '--s2' },
     gfex: { color: '--s3' },
   };
   const SPREADS = {
     copper: [{ key: 'shfe_comex', label: 'SHFE – COMEX', a: 'shfe', b: 'comex', color: '--s4' }],
+    gold: [{ key: 'shfe_comex_au', label: 'SHFE – COMEX (Shanghai premium)', a: 'shfe_au', b: 'comex_au', color: '--s4' }],
+    silver: [{ key: 'shfe_comex_ag', label: 'SHFE – COMEX (Shanghai premium)', a: 'shfe_ag', b: 'comex_ag', color: '--s4' }],
   };
   // Units: currency and the quantity of one unit in tonnes
   const UNIT_INFO = {
@@ -207,8 +215,13 @@ footer a { color: inherit; }
     'CNY/t': { ccy: 'CNY', q: 1, pre: '¥', post: '/t', d: 0 },
     'USD/lb': { ccy: 'USD', q: 0.00045359237, pre: '$', post: '/lb', d: 4 },
     'USD/kg': { ccy: 'USD', q: 0.001, pre: '$', post: '/kg', d: 2 },
+    'USD/oz': { ccy: 'USD', q: 31.1034768e-6, pre: '$', post: '/oz', d: 2 },
+    'EUR/oz': { ccy: 'EUR', q: 31.1034768e-6, pre: '€', post: '/oz', d: 2 },
+    'CNY/g': { ccy: 'CNY', q: 1e-6, pre: '¥', post: '/g', d: 2 },
+    'CNY/kg': { ccy: 'CNY', q: 1e-3, pre: '¥', post: '/kg', d: 0 },
   };
-  const UNITS = { copper: ['USD/t', 'USD/lb', 'CNY/t', 'EUR/t'], aluminium: ['USD/t', 'CNY/t', 'EUR/t'], iron: ['USD/t', 'CNY/t', 'EUR/t'], lithium: ['CNY/t', 'USD/t', 'USD/kg', 'EUR/t'] };
+  const UNITS = { copper: ['USD/t', 'USD/lb', 'CNY/t', 'EUR/t'], aluminium: ['USD/t', 'CNY/t', 'EUR/t'], iron: ['USD/t', 'CNY/t', 'EUR/t'], lithium: ['CNY/t', 'USD/t', 'USD/kg', 'EUR/t'],
+    gold: ['USD/oz', 'CNY/g', 'EUR/oz'], silver: ['USD/oz', 'CNY/kg', 'EUR/oz'] };
   // Chinese futures include VAT (series field `vat`, e.g. 0.13); shared across all tabs
   const VAT = { ex: params.get('vat') === 'ex' };
   const vatAdj = (s, v) => (v == null || !s.vat || !VAT.ex ? v : v / (1 + s.vat));
