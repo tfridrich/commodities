@@ -12,6 +12,8 @@ Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Fin
         Gold       AU0     CNY/g     SHFE gold, main contract (no VAT: gold traded on exchange is VAT-exempt)
         Silver     AG0     CNY/kg    SHFE silver, main contract, incl. 13% VAT
         COMEX      GC, SI  USD/oz    COMEX gold and silver, continuous nearby futures (global feed)
+        Steel      RB0     CNY/t     SHFE steel rebar, main contract, incl. 13% VAT
+                   HC0     CNY/t     SHFE hot-rolled coil, main contract, incl. 13% VAT
         Iron ore   I0      CNY/t     DCE iron ore 62% Fe fines, main contract
         Lithium    LC0     CNY/t     GFEX battery-grade lithium carbonate, main contract
     and their forward curves from the individual contract months (CU2701, AL2701, I2705, LC2707, ...).
@@ -84,6 +86,12 @@ SERIES = [
     dict(key="shfe_ag", group="silver", label="SHFE silver", unit="CNY/kg", source="sina", id="AG0", vat=CN_VAT,
          expect=(1000, 200000),
          desc="Shanghai Futures Exchange silver (Ag 99.99%), main contract, settlement price incl. 13% VAT, CNY per kg"),
+    dict(key="shfe_rb", group="steel", label="SHFE rebar", unit="CNY/t", source="sina", id="RB0", vat=CN_VAT,
+         expect=(1000, 12000),
+         desc="Shanghai Futures Exchange steel rebar (HRB400E), main contract, settlement price incl. 13% VAT"),
+    dict(key="shfe_hc", group="steel", label="SHFE hot-rolled coil", unit="CNY/t", source="sina", id="HC0", vat=CN_VAT,
+         expect=(1000, 12000),
+         desc="Shanghai Futures Exchange hot-rolled steel coil (Q235B), main contract, settlement price incl. 13% VAT"),
     dict(key="sgx", group="iron", label="SGX iron ore 62%", unit="USD/t", source="sina_global", id="FEF",
          tz="Asia/Singapore", settled_hour=20,
          desc="SGX iron ore 62% Fe CFR China futures, continuous nearby contract, daily close, USD per dry tonne"),
@@ -110,6 +118,10 @@ CURVES = [
     dict(key="shfe_ag", group="silver", label="SHFE silver", unit="CNY/kg", source="sina", root="AG", vat=CN_VAT,
          expect=(1000, 200000), monthly=13, dec_years=0,
          desc="SHFE silver futures (AG), settlement prices incl. 13% VAT, CNY per kg"),
+    dict(key="shfe_rb", group="steel", label="SHFE rebar", unit="CNY/t", source="sina", root="RB", vat=CN_VAT,
+         expect=(1000, 12000), monthly=13, dec_years=0, desc="SHFE steel rebar futures (RB), settlement prices incl. 13% VAT"),
+    dict(key="shfe_hc", group="steel", label="SHFE hot-rolled coil", unit="CNY/t", source="sina", root="HC", vat=CN_VAT,
+         expect=(1000, 12000), monthly=13, dec_years=0, desc="SHFE hot-rolled coil futures (HC), settlement prices incl. 13% VAT"),
     dict(key="dce", group="iron", label="DCE iron ore", unit="CNY/t", source="sina", root="I", vat=CN_VAT,
          monthly=13, dec_years=0, desc="DCE iron ore futures (I), settlement prices incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", root="LC", vat=CN_VAT,
