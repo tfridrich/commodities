@@ -74,7 +74,7 @@ td.big { font-size: 20px; font-weight: 560; font-stretch: 104%; }
 .tabs { display: flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
 .tabs button { font: inherit; font-size: 15px; font-weight: 520; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); padding: 8px 14px 9px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
-.notes { color: var(--ink-2); font-size: 14px; padding-left: 18px; max-width: 80ch; margin-top: 36px; }
+.notes { color: var(--ink-2); font-size: 14px; padding-left: 18px; margin-top: 36px; }
 footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 14px; }
 footer a { color: inherit; }
 .status { color: var(--ink-2); padding: 40px 0; }
@@ -107,7 +107,7 @@ footer a { color: inherit; }
       <a class="brand" href="../">Commodities</a>
       <div class="cnav-links">
         <a href="../">Power</a>
-        <a href="../oil-gas/">Oil &amp; gas</a>
+        <a href="../oil-gas/">Fuels</a>
         <a href="../metals/">Metals</a>
       </div>
     </div>
@@ -161,6 +161,7 @@ footer a { color: inherit; }
   <div class="panel" id="panel-construction" role="tabpanel" aria-labelledby="tab-construction" hidden>
     <p class="lede">What it costs to build in Germany: the construction price index measures what builders charge for new buildings, the construction cost index what materials and labour cost the builder. Both are quarterly; the gap between them shows builders' margins.</p>
     <section><h2>Construction price and cost indices</h2><div data-index="construction"></div></section>
+    <section><h2>Cement and concrete price indices</h2><p class="sub">There is no exchange or daily price for cement or concrete anywhere: ready-mixed concrete has to be poured within an hour or two of mixing, so it is priced plant by plant and project by project. The official measure is the monthly producer price index of each country.</p><div data-index="cement"></div></section>
   </div>
 
   <div class="panel" id="panel-labour" role="tabpanel" aria-labelledby="tab-labour" hidden>
@@ -172,13 +173,14 @@ footer a { color: inherit; }
     <li>Exchange rates are the euro foreign exchange reference rates of the European Central Bank, published for information on every TARGET working day at about 16:00 CET. USD/CNY and GBP/USD are cross rates calculated from them, so they can differ slightly from market quotes at the same moment.</li>
     <li>Inflation for the euro area, Germany and Austria is the harmonised index of consumer prices (HICP), which the ECB targets at 2%; the national consumer price index of Germany (VPI) can differ by a few tenths. The latest month is often a flash estimate that is revised once. US inflation is calculated here from the CPI for all urban consumers (CPI-U, not seasonally adjusted); UK inflation is the ONS consumer prices index (CPI). Chinese inflation is not shown because there is no free source for it that is kept up to date and can be read automatically.</li>
     <li>Construction prices and costs are the German indices for new residential buildings (Destatis, published by Eurostat). Germany's indices for office and industrial buildings move closely with them but are published by Destatis only.</li>
+    <li>Cement and concrete are producer price indices for the US (Bureau of Labor Statistics, via FRED) and Germany (Eurostat): what cement plants and concrete producers charge, excluding VAT.</li>
     <li>The labour cost index covers wages and salaries plus employers' social contributions and payroll taxes, minus subsidies, per hour actually worked. Where Eurostat publishes a seasonally and calendar adjusted series it is shown; otherwise the unadjusted index has a regular pattern within the year (one-off payments, holidays).</li>
-    <li>All indices are rebased to their 2021 average = 100 so different sources can be compared; the "1 year" change is against the same quarter a year earlier.</li>
+    <li>All indices are rebased to their 2021 average = 100 so different sources can be compared; the "1 year" change is against the same quarter (or month) a year earlier.</li>
   </ul>
 
   <footer>
     <p id="updated"></p>
-    <p class="full">Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>; inflation, construction and labour cost indices from <a href="https://ec.europa.eu/eurostat">Eurostat</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), based on data of the Statistisches Bundesamt (Destatis) and Statistik Austria; US consumer prices from the <a href="https://www.bls.gov/cpi/">Bureau of Labor Statistics</a> via <a href="https://fred.stlouisfed.org/series/CPIAUCNS">FRED</a>; UK consumer prices from the <a href="https://www.ons.gov.uk/">Office for National Statistics</a> (Open Government Licence). For information only, no warranty.</p>
+    <p class="full">Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>; inflation, construction, cement, concrete and labour cost indices from <a href="https://ec.europa.eu/eurostat">Eurostat</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), based on data of the Statistisches Bundesamt (Destatis) and Statistik Austria; US consumer and producer prices from the <a href="https://www.bls.gov/">Bureau of Labor Statistics</a> via <a href="https://fred.stlouisfed.org/">FRED</a>; UK consumer prices from the <a href="https://www.ons.gov.uk/">Office for National Statistics</a> (Open Government Licence). For information only, no warranty.</p>
   </footer>
 </div>
 
@@ -290,6 +292,10 @@ footer a { color: inherit; }
       draws.inflation = IndexPanel.render(document.querySelector('[data-rate="inflation"]'),
         Object.entries(data.rates || {}).filter(([, s]) => s.group === 'inflation').map(([key, s]) => ({ key, ...s })), { rate: true, range: '10y' });
       draws.construction = IndexPanel.render(document.querySelector('[data-index="construction"]'), idx('construction'), { range: 'all' });
+      const drawCement = IndexPanel.render(document.querySelector('[data-index="cement"]'), idx('cement'),
+        { note: 'Germany "concrete products" covers ready-mixed concrete together with precast parts and blocks.' });
+      const drawConstr = draws.construction;
+      draws.construction = () => { drawConstr(); drawCement(); };
       draws.labour = IndexPanel.render(document.querySelector('[data-index="labour"]'), idx('labour'), { range: 'all' });
       document.getElementById('updated').textContent = `Data last updated ${d3.utcFormat('%-d %b %Y, %H:%M UTC')(new Date(data.updated))}.`;
       const want = params.get('tab') || location.hash.slice(1);
