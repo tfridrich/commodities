@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Economics · exchange rates, construction prices and labour costs · Commodities</title>
+<meta name="description" content="Daily ECB euro reference rates for the US dollar, Chinese yuan and British pound, and quarterly construction price and labour cost indices for Germany, updated automatically.">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="../assets/indices.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="../assets/indices.js"></script>
+<style>
+:root {
+  --bg: #F3F6F7; --surface: #FFFFFF; --ink: #15212B; --ink-2: #51606B; --rule: #D5DDE1; --grid: #E4EAED;
+  --s1: #0A6C93; --s2: #B2741A; --s3: #3D8A55; --s4: #6A4C9C; --s5: #B03A48;
+  --focus: #0A6C93; --gutter: 16px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101820; --surface: #16212B; --ink: #E7EDF0; --ink-2: #9AAAB5; --rule: #2A3945; --grid: #22303B;
+    --s1: #4DB3DB; --s2: #E2A54A; --s3: #6CC487; --s4: #A98EE0; --s5: #E57B87; --focus: #4DB3DB; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101820; --surface: #16212B; --ink: #E7EDF0; --ink-2: #9AAAB5; --rule: #2A3945; --grid: #22303B;
+  --s1: #4DB3DB; --s2: #E2A54A; --s3: #6CC487; --s4: #A98EE0; --s5: #E57B87; --focus: #4DB3DB; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 40px var(--gutter) 56px; }
+h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; font-weight: 640; font-stretch: 118%; letter-spacing: -0.01em; margin: 0 0 14px; }
+h2 { font-size: 21px; line-height: 1.25; font-weight: 620; font-stretch: 110%; margin: 0 0 4px; }
+.lede { font-size: 18px; color: var(--ink-2); margin: 22px 0 0; }
+.lede b { color: var(--ink); font-weight: 600; }
+.sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
+section { margin-top: 44px; }
+.hero { margin-top: 28px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { font: inherit; font-size: 14px; background: transparent; color: var(--ink-2); border: 0; padding: 6px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.chart { position: relative; min-height: 300px; }
+.chart svg { display: block; }
+.chart .tick text { fill: var(--ink-2); font-size: 12px; font-family: inherit; }
+.chart .tick line { stroke: var(--grid); }
+.chart .domain { stroke: var(--rule); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--ink-2); padding: 8px 0 4px; }
+.toggle { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 11px 3px 9px; display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
+.toggle[aria-pressed="false"] { color: var(--ink-2); background: transparent; border-style: dashed; }
+.toggle[aria-pressed="false"] .sw { opacity: .25; }
+.sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.sw.dash { background: none !important; border-top: 3px dashed currentColor; height: 0; }
+.tip { position: absolute; top: 8px; pointer-events: none; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); padding: 8px 10px; font-size: 13px; white-space: nowrap; z-index: 2; }
+.tip-date { color: var(--ink-2); margin-bottom: 4px; }
+.tip-grid { display: grid; grid-template-columns: auto auto; gap: 1px 14px; }
+.tip-grid .v { text-align: right; }
+.table-wrap { overflow-x: auto; }
+.table-scroll { max-height: 420px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+thead th { color: var(--ink-2); font-weight: 500; background: var(--bg); position: sticky; top: 0; }
+td.mkt { font-weight: 600; }
+td.mkt small { display: block; font-weight: 400; color: var(--ink-2); font-size: 12px; white-space: normal; min-width: 180px; max-width: 300px; }
+td.big { font-size: 20px; font-weight: 560; font-stretch: 104%; }
+.up { color: var(--s3); } .down { color: var(--s5); }
+.tabs { display: flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tabs button { font: inherit; font-size: 15px; font-weight: 520; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); padding: 8px 14px 9px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.notes { color: var(--ink-2); font-size: 14px; padding-left: 18px; max-width: 80ch; margin-top: 36px; }
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 14px; }
+footer a { color: inherit; }
+.status { color: var(--ink-2); padding: 40px 0; }
+.compact .wrap { padding-top: 12px; padding-bottom: 12px; }
+.compact .full { display: none; }
+@media (max-width: 560px) {
+  .wrap { padding-top: 24px; }
+  .hero { padding: 12px 10px 8px; }
+  td.big { font-size: 17px; }
+}
+
+/* ---- commodity switcher (shared by all pages) ---- */
+.cnav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav .brand { font-size: 13px; font-weight: 700; font-stretch: 125%; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
+.cnav-links { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
+.cnav-links a { font-size: 15px; font-weight: 560; color: var(--ink-2); text-decoration: none; padding: 5px 16px; border-radius: 999px; white-space: nowrap; }
+.cnav-links a:hover { color: var(--ink); }
+.cnav-links a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.compact .cnav { margin-bottom: 12px; padding-bottom: 10px; }
+.cnav-econ { margin-left: 4px; }
+@media (max-width: 560px) { .cnav-links a { padding: 5px 12px; font-size: 14px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="cnav" aria-label="Commodities">
+    <a class="brand" href="../">Commodities</a>
+    <div class="cnav-links">
+      <a href="../">Power</a>
+      <a href="../oil-gas/">Oil &amp; gas</a>
+      <a href="../metals/">Metals</a>
+    </div>
+    <div class="cnav-links cnav-econ">
+      <a href="../economics/" aria-current="page">Economics</a>
+    </div>
+  </nav>
+  <header>
+    <h1>Economics</h1>
+    <nav class="tabs" role="tablist" aria-label="Economics">
+      <button type="button" role="tab" id="tab-fx" aria-controls="panel-fx" aria-selected="true">Exchange rates</button>
+      <button type="button" role="tab" id="tab-construction" aria-controls="panel-construction" aria-selected="false" tabindex="-1">Construction prices</button>
+      <button type="button" role="tab" id="tab-labour" aria-controls="panel-labour" aria-selected="false" tabindex="-1">Labour costs</button>
+    </nav>
+  </header>
+
+  <div class="panel" id="panel-fx" role="tabpanel" aria-labelledby="tab-fx">
+    <p class="lede" data-fx-lede>Loading the exchange rates…</p>
+    <div class="hero">
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Currency pair" data-pairs></div>
+        <div class="seg" role="group" aria-label="Period" data-fx-range></div>
+      </div>
+      <div class="chart" data-fx-chart></div>
+    </div>
+    <section>
+      <h2>Latest rates</h2>
+      <p class="sub">ECB euro reference rates, set at about 14:10 Central European time on each working day and published at about 16:00. EUR/USD 1.16 means 1 euro costs 1.16 US dollars; the pairs without the euro are calculated from the euro rates.</p>
+      <div class="table-wrap"><table data-fx-latest></table></div>
+    </section>
+    <section class="full">
+      <h2>Yearly averages</h2>
+      <p class="sub">Average of the daily reference rates in each calendar year, the usual basis for budgets and financial models.</p>
+      <div class="table-wrap table-scroll"><table data-fx-yearly></table></div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-construction" role="tabpanel" aria-labelledby="tab-construction" hidden>
+    <p class="lede">What it costs to build in Germany: the construction price index measures what builders charge for new buildings, the construction cost index what materials and labour cost the builder. Both are quarterly; the gap between them shows builders' margins.</p>
+    <section><h2>Construction price and cost indices</h2><div data-index="construction"></div></section>
+  </div>
+
+  <div class="panel" id="panel-labour" role="tabpanel" aria-labelledby="tab-labour" hidden>
+    <p class="lede">Labour costs per hour worked in Germany, for the construction sector and the whole economy: wages and salaries plus employers' social contributions and payroll taxes. Quarterly.</p>
+    <section><h2>Labour cost indices</h2><div data-index="labour"></div></section>
+  </div>
+
+  <ul class="notes full">
+    <li>Exchange rates are the euro foreign exchange reference rates of the European Central Bank, published for information on every TARGET working day at about 16:00 CET. USD/CNY and GBP/USD are cross rates calculated from them, so they can differ slightly from market quotes at the same moment.</li>
+    <li>Construction prices and costs are the German indices for new residential buildings (Destatis, published by Eurostat). Germany's indices for office and industrial buildings move closely with them but are published by Destatis only.</li>
+    <li>The labour cost index covers wages and salaries plus employers' social contributions and payroll taxes, minus subsidies, per hour actually worked. Where Eurostat publishes a seasonally and calendar adjusted series it is shown; otherwise the unadjusted index has a regular pattern within the year (one-off payments, holidays).</li>
+    <li>All indices are rebased to their 2021 average = 100 so different sources can be compared; the "1 year" change is against the same quarter a year earlier.</li>
+  </ul>
+
+  <footer>
+    <p id="updated"></p>
+    <p class="full">Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>; construction and labour cost indices from <a href="https://ec.europa.eu/eurostat">Eurostat</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), based on data of the Statistisches Bundesamt (Destatis). For information only, no warranty.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('view') === 'compact') document.documentElement.classList.add('compact');
+  if (params.get('theme') === 'light' || params.get('theme') === 'dark') document.documentElement.dataset.theme = params.get('theme');
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
+  const pct = (v) => (v == null || !isFinite(v) ? '–' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`);
+  const cls = (v) => (v == null || !isFinite(v) || Math.abs(v) < 0.05 ? '' : v > 0 ? 'up' : 'down');
+  const draws = {};
+
+  // ---------- exchange rates ----------
+  // EUR/X = ECB rate for X; crosses from the euro rates of the same day
+  const PAIRS = [
+    { key: 'EURUSD', label: 'EUR/USD', calc: (r) => r.USD, d: 4 },
+    { key: 'EURCNY', label: 'EUR/CNY', calc: (r) => r.CNY, d: 4 },
+    { key: 'EURGBP', label: 'EUR/GBP', calc: (r) => r.GBP, d: 4 },
+    { key: 'USDCNY', label: 'USD/CNY', calc: (r) => r.CNY / r.USD, d: 4 },
+    { key: 'GBPUSD', label: 'GBP/USD', calc: (r) => r.USD / r.GBP, d: 4 },
+  ];
+  function setupFx(fx) {
+    const panel = document.getElementById('panel-fx'), q = (s) => panel.querySelector(s);
+    const dates = Object.keys(fx.USD || {}).filter((d) => fx.CNY?.[d] && fx.GBP?.[d]).sort();
+    if (!dates.length) { q('[data-fx-lede]').textContent = 'No exchange rates yet - they appear after the next daily update.'; return () => {}; }
+    const series = Object.fromEntries(PAIRS.map((p) => [p.key, dates.map((d) => ({ d, x: new Date(d + 'T00:00:00Z'), v: p.calc({ USD: fx.USD[d], CNY: fx.CNY[d], GBP: fx.GBP[d] }) }))]));
+    const last = dates.at(-1), r = { USD: fx.USD[last], CNY: fx.CNY[last], GBP: fx.GBP[last] };
+    const dayFmt = d3.utcFormat('%a %-d %b %Y');
+    q('[data-fx-lede]').innerHTML = `On <b>${dayFmt(new Date(last + 'T00:00:00Z'))}</b>, 1 euro cost <b>$${r.USD.toFixed(4)}</b>, <b>¥${r.CNY.toFixed(4)}</b> and <b>£${r.GBP.toFixed(4)}</b>; 1 US dollar cost <b>¥${(r.CNY / r.USD).toFixed(4)}</b>.`;
+    const st = { pair: PAIRS.some((p) => p.key === params.get('pair')) ? params.get('pair') : 'EURUSD', range: '365' };
+    const mkSeg = (box, items, key) => {
+      for (const [v, label] of items) {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', String(st[key] === v));
+        b.onclick = () => { st[key] = v; box.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); draw(); };
+        box.append(b);
+      }
+    };
+    mkSeg(q('[data-pairs]'), PAIRS.map((p) => [p.key, p.label]), 'pair');
+    mkSeg(q('[data-fx-range]'), [['30', '30 days'], ['90', '90 days'], ['365', '1 year'], ['1826', '5 years'], ['3652', '10 years'], ['all', 'All']], 'range');
+
+    // latest table
+    const lastOnOrBefore = (s, d) => { let lo = null; for (const p of s) { if (p.d <= d) lo = p; else break; } return lo; };
+    const back = (n) => d3.utcFormat('%Y-%m-%d')(d3.utcDay.offset(new Date(last + 'T00:00:00Z'), -n));
+    q('[data-fx-latest]').innerHTML = `<thead><tr><th>Pair</th><th>Rate</th><th>Day</th><th>1 day</th><th>1 week</th><th>1 month</th><th>Year to date</th><th>1 year</th></tr></thead><tbody>${PAIRS.map((p) => {
+      const s = series[p.key], v = s.at(-1).v;
+      const ch = (b) => { const o = b && b.v; const c = o ? (v / o - 1) * 100 : null; return `<td class="${cls(c)}">${pct(c)}</td>`; };
+      return `<tr><td class="mkt">${p.label}</td><td class="big">${v.toFixed(p.d)}</td><td>${d3.utcFormat('%-d %b')(s.at(-1).x)}</td>${ch(s.at(-2))}${ch(lastOnOrBefore(s, back(7)))}${ch(lastOnOrBefore(s, back(30)))}${ch(lastOnOrBefore(s, `${+last.slice(0, 4) - 1}-12-31`))}${ch(lastOnOrBefore(s, back(365)))}</tr>`;
+    }).join('')}</tbody>`;
+    // yearly averages
+    const years = [...new Set(dates.map((d) => d.slice(0, 4)))].sort().reverse();
+    q('[data-fx-yearly]').innerHTML = `<thead><tr><th>Year</th>${PAIRS.map((p) => `<th>${p.label}</th>`).join('')}</tr></thead><tbody>${years.map((y) => `<tr><td>${y}${y === last.slice(0, 4) ? ' (to date)' : ''}</td>${PAIRS.map((p) => `<td>${d3.mean(series[p.key].filter((x) => x.d.startsWith(y)), (x) => x.v).toFixed(p.d)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+
+    function draw() {
+      const box = q('[data-fx-chart]'); box.replaceChildren();
+      const all = series[st.pair], pair = PAIRS.find((p) => p.key === st.pair);
+      const from = st.range === 'all' ? all[0].d : back(+st.range);
+      const pts = all.filter((p) => p.d >= from);
+      const W = Math.max(280, box.clientWidth), H = W < 560 ? 260 : 340, m = { t: 10, r: 14, b: 26, l: 52 };
+      const x = d3.scaleUtc().domain(d3.extent(pts, (p) => p.x)).range([m.l, W - m.r]);
+      const y = d3.scaleLinear().domain(d3.extent(pts, (p) => p.v)).nice().range([H - m.b, m.t]);
+      const svg = d3.select(box).append('svg').attr('width', W).attr('height', H);
+      svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(W < 560 ? 4 : 8).tickSizeOuter(0));
+      svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(6).tickSize(-(W - m.l - m.r))).call((g) => g.select('.domain').remove());
+      svg.append('path').datum(pts).attr('fill', 'none').attr('stroke', css('--s1')).attr('stroke-width', 2)
+        .attr('d', d3.line().x((p) => x(p.x)).y((p) => y(p.v)));
+      const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; box.append(tip);
+      const dot = svg.append('circle').attr('r', 4).attr('fill', css('--s1')).attr('opacity', 0);
+      svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+        .on('pointermove', (ev) => {
+          const t = x.invert(d3.pointer(ev)[0]);
+          const p = pts[Math.min(pts.length - 1, d3.bisector((p) => p.x).center(pts, t))];
+          dot.attr('cx', x(p.x)).attr('cy', y(p.v)).attr('opacity', 1);
+          tip.innerHTML = `<div class="tip-date">${d3.utcFormat('%a %-d %b %Y')(p.x)}</div><b>${pair.label} ${p.v.toFixed(pair.d)}</b>`;
+          tip.hidden = false; tip.style.left = `${x(p.x) > W / 2 ? x(p.x) - tip.offsetWidth - 12 : x(p.x) + 12}px`;
+        })
+        .on('pointerleave', () => { tip.hidden = true; dot.attr('opacity', 0); });
+    }
+    draw();
+    return draw;
+  }
+
+  // ---------- tabs ----------
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  function selectTab(tab, focus) {
+    tabs.forEach((t) => { const on = t === tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; document.getElementById(t.getAttribute('aria-controls')).hidden = !on; });
+    if (focus) tab.focus();
+    const key = tab.id.replace('tab-', '');
+    history.replaceState(null, '', tab === tabs[0] ? location.pathname + location.search : location.search + '#' + key);
+    draws[key] && draws[key]();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t));
+    t.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); selectTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length], true); } });
+  });
+  const redrawAll = () => Object.values(draws).forEach((f) => f());
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(redrawAll, 150); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+
+  fetch('../data/economics.json', { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then((data) => {
+      const idx = (group) => Object.entries(data.indices || {}).filter(([, s]) => s.group === group).map(([key, s]) => ({ key, ...s }));
+      draws.fx = setupFx(data.fx || {});
+      draws.construction = IndexPanel.render(document.querySelector('[data-index="construction"]'), idx('construction'), { range: 'all' });
+      draws.labour = IndexPanel.render(document.querySelector('[data-index="labour"]'), idx('labour'), { range: 'all' });
+      document.getElementById('updated').textContent = `Data last updated ${d3.utcFormat('%-d %b %Y, %H:%M UTC')(new Date(data.updated))}.`;
+      const want = params.get('tab') || location.hash.slice(1);
+      selectTab(tabs.find((t) => t.id === 'tab-' + want) || tabs[0]);
+    })
+    .catch((e) => { document.querySelectorAll('.panel').forEach((p) => { p.textContent = `The data could not be loaded (${e.message}).`; }); });
+})();
+</script>
+<script>
+// keep ?view=compact / ?theme=… when switching section
+(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { a.href = a.getAttribute('href') + q; }); })();
+(() => {
+  const bar = document.querySelector('.tabs'); if (!bar) return;
+  const show = () => { const t = bar.querySelector('[aria-selected=true]'); if (t) bar.scrollLeft = t.offsetLeft - bar.offsetLeft - 16; };
+  bar.addEventListener('click', show); addEventListener('load', show); setTimeout(show, 0);
+})();
+</script>
+</body>
+</html>

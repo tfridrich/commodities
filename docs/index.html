@@ -40,11 +40,11 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 40px var(--gutter) 56px; }
-h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; font-weight: 640; font-stretch: 118%; letter-spacing: -0.01em; margin: 0 0 14px; max-width: 18ch; }
+h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; font-weight: 640; font-stretch: 118%; letter-spacing: -0.01em; margin: 0 0 14px; }
 h2 { font-size: 21px; line-height: 1.25; font-weight: 620; font-stretch: 110%; margin: 0 0 4px; }
-.lede { font-size: 18px; color: var(--ink-2); max-width: 62ch; margin: 0; }
+.lede { font-size: 18px; color: var(--ink-2); margin: 0; }
 .lede b { color: var(--ink); font-weight: 600; }
-.sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; max-width: 70ch; }
+.sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
 section { margin-top: 44px; }
 .hero { margin-top: 28px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 12px; }
 .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 8px; }
@@ -69,6 +69,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .tip-grid { display: grid; grid-template-columns: auto auto auto; gap: 1px 14px; }
 .tip-grid .h { color: var(--ink-2); text-align: right; }
 .tip-grid .v { text-align: right; }
+.sw.band { height: 10px !important; opacity: .35; }
 .sw { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .latest { display: grid; grid-template-columns: minmax(150px, 1.2fr) repeat(4, minmax(80px, 1fr)); border-top: 2px solid var(--ink); }
 .latest > div { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--rule); }
@@ -161,6 +162,7 @@ td.tot, th.tot { font-weight: 600; }
 .cnav-links a:hover { color: var(--ink); }
 .cnav-links a[aria-current="page"] { background: var(--ink); color: var(--bg); }
 .compact .cnav { margin-bottom: 12px; padding-bottom: 10px; }
+.cnav-econ { margin-left: 4px; }
 @media (max-width: 560px) { .cnav-links a { padding: 5px 12px; font-size: 14px; } }
 </style>
 </head>
@@ -172,6 +174,9 @@ td.tot, th.tot { font-weight: 600; }
       <a href="" aria-current="page">Power</a>
       <a href="oil-gas/">Oil &amp; gas</a>
       <a href="metals/">Metals</a>
+    </div>
+    <div class="cnav-links cnav-econ">
+      <a href="economics/">Economics</a>
     </div>
   </nav>
   <header>
@@ -289,7 +294,7 @@ td.tot, th.tot { font-weight: 600; }
     </div>
     <section>
       <h2>Prices over time</h2>
-      <p class="sub">€/MWh. Mean, median, min and max price of each day, week, month or year. Switch lines on and off below the chart.</p>
+      <p class="sub">€/MWh. Mean, median, min and max price of each day, week, month or year. The shaded band is the mean plus and minus one standard deviation of the hourly prices in each period, a measure of how much prices swing. Switch lines and the band on and off below the chart.</p>
       <div class="hero" data-chart="da">
         <div class="controls" data-controls></div>
         <div class="chart"></div>
@@ -782,10 +787,13 @@ td.tot, th.tot { font-weight: 600; }
   const marketLegend = MARKETS.map((m) => ({ label: m.name, dash: m.dash }));
 
   // Generic line chart: lines = [{m, rows:[{x, ...}]}], series = [[key, label, cssVar]]
-  function lineChart(el, { lines, series, unit, label, ticks: tickMode, dayStarts, dayLabel }) {
+  function lineChart(el, { lines, series, unit, label, ticks: tickMode, dayStarts, dayLabel, band }) {
     el.replaceChildren();
     const all = lines.flatMap((l) => l.rows);
-    const vals = all.flatMap((r) => series.map(([k]) => r[k])).filter((v) => v != null && Number.isFinite(v));
+    // band = { center, spread, color, name }: a shaded envelope center ± spread drawn behind the lines
+    const bLo = (r) => (band && r[band.center] != null && r[band.spread] != null ? r[band.center] - r[band.spread] : null);
+    const bHi = (r) => (band && r[band.center] != null && r[band.spread] != null ? r[band.center] + r[band.spread] : null);
+    const vals = all.flatMap((r) => [...series.map(([k]) => r[k]), bLo(r), bHi(r)]).filter((v) => v != null && Number.isFinite(v));
     if (!vals.length) { const p = document.createElement('p'); p.className = 'status'; p.textContent = 'No data for this selection.'; el.append(p); return; }
     const W = Math.max(280, el.clientWidth), H = el.clientWidth < 500 ? 260 : 330;
     const lo = Math.min(0, d3.min(vals)), hi = d3.max(vals);
@@ -812,6 +820,10 @@ td.tot, th.tot { font-weight: 600; }
       else { const mo = Math.max(1, Math.round(spanYears * 12)); ticks = d3.utcMonth.every([1, 2, 3, 6, 12].find((k) => mo / k <= room) || 12); tf = d3.utcFormat('%b %y'); }
     }
     svg.append('g').attr('transform', `translate(0,${H - 26})`).call((Array.isArray(ticks) ? d3.axisBottom(x).tickValues(ticks) : d3.axisBottom(x).ticks(ticks)).tickSizeOuter(0).tickFormat(tf));
+    if (band) for (const l of lines) {
+      svg.append('path').datum(l.rows).attr('fill', css(band.color)).attr('fill-opacity', lines.length > 1 ? 0.09 : 0.14).attr('stroke', 'none')
+        .attr('d', d3.area().defined((r) => bLo(r) != null).x((r) => x(r.x)).y0((r) => y(bLo(r))).y1((r) => y(bHi(r))));
+    }
     for (const l of lines) {
       series.forEach(([k, , c]) => {
         svg.append('path').datum(l.rows).attr('fill', 'none').attr('stroke', css(c))
@@ -842,6 +854,11 @@ td.tot, th.tot { font-weight: 600; }
         nc.append(sw, document.createTextNode(name)); g.append(nc);
         maps.forEach((m) => cell(fmt(m.get(tx)?.[k], 2), 'v'));
       });
+      if (band) {
+        const nc = document.createElement('div'); const sw = document.createElement('i'); sw.className = 'sw band'; sw.style.background = `var(${band.color})`;
+        nc.append(sw, document.createTextNode(band.name)); g.append(nc);
+        maps.forEach((m) => cell(fmt(m.get(tx)?.[band.spread], 2), 'v'));
+      }
       tip.append(g); tip.hidden = false;
       const px = x(tx), tw = tip.offsetWidth;
       tip.style.left = (px + 14 + tw > W ? Math.max(0, px - tw - 14) : px + 14) + 'px';
@@ -861,8 +878,8 @@ td.tot, th.tot { font-weight: 600; }
     }
     return g;
   }
-  function chartBlock(block, { data, grouped, series, unit, title, gran = 'weekly', range = '1095', off = [] }) {
-    const st = { gran, range, zone: 'both', on: Object.fromEntries(series.map(([k]) => [k, !off.includes(k)])) };
+  function chartBlock(block, { data, grouped, series, unit, title, gran = 'weekly', range = '1095', off = [], band = null }) {
+    const st = { gran, range, zone: 'both', on: Object.fromEntries(series.map(([k]) => [k, !off.includes(k)])), band: !!band };
     const ctr = block.querySelector('[data-controls]');
     const rangeSeg = seg('Time range', [['10', '10 days'], ['30', '30 days'], ['90', '90 days'], ['365', '1 year'], ['1095', '3 years'], ['all', 'All']], st.range, (v) => { st.range = v; draw(); });
     ctr.replaceChildren(
@@ -880,6 +897,13 @@ td.tot, th.tot { font-weight: 600; }
       });
       lg.prepend(t);
     });
+    if (band) {
+      const t = document.createElement('button'); t.type = 'button'; t.className = 'toggle'; t.setAttribute('aria-pressed', 'true');
+      t.title = 'Shaded range: mean plus and minus one standard deviation of the prices in each period';
+      const i = document.createElement('i'); i.className = 'sw band'; i.style.background = `var(${band.color})`; t.append(i, band.label);
+      t.addEventListener('click', () => { st.band = !st.band; t.setAttribute('aria-pressed', String(st.band)); draw(); });
+      lg.append(t);
+    }
     const el = block.querySelector('.chart');
     const keys = series.map(([k]) => k);
     function draw() {
@@ -891,7 +915,8 @@ td.tot, th.tot { font-weight: 600; }
         const cut = maxX.getTime() - Number(st.range) * 86400000;
         lines = lines.map((l) => ({ ...l, rows: l.rows.filter((r) => r.x.getTime() >= cut) }));
       }
-      lineChart(el, { lines, series: series.filter(([k]) => st.on[k]), unit, label: `${st.gran} ${title} for ${lines.map((l) => l.m.name).join(' and ')}` });
+      lineChart(el, { lines, series: series.filter(([k]) => st.on[k]), unit, label: `${st.gran} ${title} for ${lines.map((l) => l.m.name).join(' and ')}`,
+        band: band && st.band ? band : null });
     }
     return draw;
   }
@@ -990,7 +1015,8 @@ td.tot, th.tot { font-weight: 600; }
     const rows = (zone, g) => (st.markets[zone]?.[g] || []).map((r) => Object.fromEntries(cols.map((c, i) => [c === 'period' ? 'key' : c, r[i]])));
     const grouped = {}; for (const m of MARKETS) grouped[m.key] = Object.fromEntries(['daily', 'weekly', 'monthly', 'yearly'].map((g) => [g, rows(m.key, g)]));
     drawDA = chartBlock(document.querySelector('[data-chart=da]'), { grouped, unit: '€/MWh', title: 'day-ahead price statistics',
-      series: [['mean', 'Mean', '--tb1'], ['median', 'Median', '--tb2'], ['min', 'Min', '--tb4'], ['max', 'Max', '--ink-2']], off: ['min', 'max'] });
+      series: [['mean', 'Mean', '--tb1'], ['median', 'Median', '--tb2'], ['min', 'Min', '--tb4'], ['max', 'Max', '--ink-2']], off: ['min', 'max'],
+      band: { center: 'mean', spread: 'std', color: '--tb1', label: 'Mean ± 1 std dev', name: 'Std dev' } });
     legend(document.querySelector('#panel-da [data-legend=markets]'), marketLegend);
     // Latest delivery days, read from the stored price history (Central European time)
     const vienna = (opts) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', ...opts });
@@ -1057,8 +1083,8 @@ td.tot, th.tot { font-weight: 600; }
     // lede
     const L = document.getElementById('da-lede'); L.replaceChildren();
     const la = grouped.AT.daily.at(-1), ld = grouped.DE_LU.daily.at(-1);
-    L.append('On ', b(dayFmt(toDate(la.key))), ', day-ahead prices in Austria averaged ', b(`€${fmt(la.mean)}/MWh`), ` (from €${fmt(la.min)} to €${fmt(la.max)}); in Germany-Luxembourg `,
-      b(`€${fmt(ld.mean)}/MWh`), ` (from €${fmt(ld.min)} to €${fmt(ld.max)}).`);
+    L.append('On ', b(dayFmt(toDate(la.key))), ', day-ahead prices in Austria averaged ', b(`€${fmt(la.mean)}/MWh`), ` with a standard deviation of €${fmt(la.std)} (from €${fmt(la.min)} to €${fmt(la.max)}); in Germany-Luxembourg `,
+      b(`€${fmt(ld.mean)}/MWh`), ` with a standard deviation of €${fmt(ld.std)} (from €${fmt(ld.min)} to €${fmt(ld.max)}).`);
     // period analyses
     const pst = { from: null, to: null, zone: 'AT' };
     marketSwitch(document.getElementById('da-period-market'), (v) => { pst.zone = v; drawPeriod(); });
