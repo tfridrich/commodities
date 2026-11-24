@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Economics · exchange rates, construction prices and labour costs · Commodities</title>
-<meta name="description" content="Daily ECB euro reference rates for the US dollar, Chinese yuan and British pound, and quarterly construction price and labour cost indices for Germany, updated automatically.">
+<title>Economics · exchange rates, inflation, construction prices and labour costs · Commodities</title>
+<meta name="description" content="Daily ECB euro reference rates for the US dollar, Chinese yuan and British pound, monthly inflation for the euro area, Germany, Austria, the US and the UK, and quarterly construction price and labour cost indices for Germany, updated automatically.">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../assets/indices.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -87,34 +87,46 @@ footer a { color: inherit; }
 }
 
 /* ---- commodity switcher (shared by all pages) ---- */
-.cnav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.cnav .brand { min-width: 124px; }
+.cnav-row { max-width: 100%; } .cnav-links { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .cnav .brand { font-size: 13px; font-weight: 700; font-stretch: 125%; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
 .cnav-links { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
 .cnav-links a { font-size: 15px; font-weight: 560; color: var(--ink-2); text-decoration: none; padding: 5px 16px; border-radius: 999px; white-space: nowrap; }
 .cnav-links a:hover { color: var(--ink); }
 .cnav-links a[aria-current="page"] { background: var(--ink); color: var(--bg); }
 .compact .cnav { margin-bottom: 12px; padding-bottom: 10px; }
-.cnav-econ { margin-left: 4px; }
 @media (max-width: 560px) { .cnav-links a { padding: 5px 12px; font-size: 14px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="cnav" aria-label="Commodities">
-    <a class="brand" href="../">Commodities</a>
-    <div class="cnav-links">
-      <a href="../">Power</a>
-      <a href="../oil-gas/">Oil &amp; gas</a>
-      <a href="../metals/">Metals</a>
+  <nav class="cnav" aria-label="Sections">
+    <div class="cnav-row">
+      <a class="brand" href="../">Commodities</a>
+      <div class="cnav-links">
+        <a href="../">Power</a>
+        <a href="../oil-gas/">Oil &amp; gas</a>
+        <a href="../metals/">Metals</a>
+      </div>
     </div>
-    <div class="cnav-links cnav-econ">
-      <a href="../economics/" aria-current="page">Economics</a>
+    <div class="cnav-row">
+      <a class="brand" href="../economics/">Economics</a>
+      <div class="cnav-links">
+        <a href="../economics/#fx" data-sec="fx">FX rates</a>
+        <a href="../economics/#inflation" data-sec="inflation">Inflation</a>
+        <a href="../economics/#construction" data-sec="construction">Construction</a>
+        <a href="../economics/#labour" data-sec="labour">Labour costs</a>
+      </div>
     </div>
   </nav>
   <header>
-    <h1>Economics</h1>
-    <nav class="tabs" role="tablist" aria-label="Economics">
+    <h1 id="econ-title">Exchange rates</h1>
+    <!-- the section links in the navigation bar above switch these tabs; the bar itself is kept for keyboard and screen-reader use -->
+    <nav class="tabs" role="tablist" aria-label="Economics" hidden>
       <button type="button" role="tab" id="tab-fx" aria-controls="panel-fx" aria-selected="true">Exchange rates</button>
+      <button type="button" role="tab" id="tab-inflation" aria-controls="panel-inflation" aria-selected="false" tabindex="-1">Inflation</button>
       <button type="button" role="tab" id="tab-construction" aria-controls="panel-construction" aria-selected="false" tabindex="-1">Construction prices</button>
       <button type="button" role="tab" id="tab-labour" aria-controls="panel-labour" aria-selected="false" tabindex="-1">Labour costs</button>
     </nav>
@@ -141,6 +153,11 @@ footer a { color: inherit; }
     </section>
   </div>
 
+  <div class="panel" id="panel-inflation" role="tabpanel" aria-labelledby="tab-inflation" hidden>
+    <p class="lede">Consumer price inflation: how much more a typical basket of goods and services costs than a year earlier. Monthly, for the euro area, Germany, Austria, the United States and the United Kingdom.</p>
+    <section><h2>Annual inflation rates</h2><div data-rate="inflation"></div></section>
+  </div>
+
   <div class="panel" id="panel-construction" role="tabpanel" aria-labelledby="tab-construction" hidden>
     <p class="lede">What it costs to build in Germany: the construction price index measures what builders charge for new buildings, the construction cost index what materials and labour cost the builder. Both are quarterly; the gap between them shows builders' margins.</p>
     <section><h2>Construction price and cost indices</h2><div data-index="construction"></div></section>
@@ -153,6 +170,7 @@ footer a { color: inherit; }
 
   <ul class="notes full">
     <li>Exchange rates are the euro foreign exchange reference rates of the European Central Bank, published for information on every TARGET working day at about 16:00 CET. USD/CNY and GBP/USD are cross rates calculated from them, so they can differ slightly from market quotes at the same moment.</li>
+    <li>Inflation for the euro area, Germany and Austria is the harmonised index of consumer prices (HICP), which the ECB targets at 2%; the national consumer price index of Germany (VPI) can differ by a few tenths. The latest month is often a flash estimate that is revised once. US inflation is calculated here from the CPI for all urban consumers (CPI-U, not seasonally adjusted); UK inflation is the ONS consumer prices index (CPI). Chinese inflation is not shown because there is no free source for it that is kept up to date and can be read automatically.</li>
     <li>Construction prices and costs are the German indices for new residential buildings (Destatis, published by Eurostat). Germany's indices for office and industrial buildings move closely with them but are published by Destatis only.</li>
     <li>The labour cost index covers wages and salaries plus employers' social contributions and payroll taxes, minus subsidies, per hour actually worked. Where Eurostat publishes a seasonally and calendar adjusted series it is shown; otherwise the unadjusted index has a regular pattern within the year (one-off payments, holidays).</li>
     <li>All indices are rebased to their 2021 average = 100 so different sources can be compared; the "1 year" change is against the same quarter a year earlier.</li>
@@ -160,7 +178,7 @@ footer a { color: inherit; }
 
   <footer>
     <p id="updated"></p>
-    <p class="full">Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>; construction and labour cost indices from <a href="https://ec.europa.eu/eurostat">Eurostat</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), based on data of the Statistisches Bundesamt (Destatis). For information only, no warranty.</p>
+    <p class="full">Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>; inflation, construction and labour cost indices from <a href="https://ec.europa.eu/eurostat">Eurostat</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), based on data of the Statistisches Bundesamt (Destatis) and Statistik Austria; US consumer prices from the <a href="https://www.bls.gov/cpi/">Bureau of Labor Statistics</a> via <a href="https://fred.stlouisfed.org/series/CPIAUCNS">FRED</a>; UK consumer prices from the <a href="https://www.ons.gov.uk/">Office for National Statistics</a> (Open Government Licence). For information only, no warranty.</p>
   </footer>
 </div>
 
@@ -245,11 +263,16 @@ footer a { color: inherit; }
 
   // ---------- tabs ----------
   const tabs = [...document.querySelectorAll('[role=tab]')];
+  const TITLES = { fx: 'Exchange rates', inflation: 'Inflation', construction: 'Construction prices', labour: 'Labour costs' };
+  // the Economics links in the navigation bar point to #fx, #inflation, ... on this page
+  window.addEventListener('hashchange', () => { const t = tabs.find((x) => x.id === 'tab-' + location.hash.slice(1)); if (t) selectTab(t); });
   function selectTab(tab, focus) {
     tabs.forEach((t) => { const on = t === tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; document.getElementById(t.getAttribute('aria-controls')).hidden = !on; });
     if (focus) tab.focus();
     const key = tab.id.replace('tab-', '');
     history.replaceState(null, '', tab === tabs[0] ? location.pathname + location.search : location.search + '#' + key);
+    document.getElementById('econ-title').textContent = TITLES[key] || 'Economics';
+    document.querySelectorAll('.cnav a[data-sec]').forEach((a) => { if (a.dataset.sec === key) { a.setAttribute('aria-current', 'page'); a.parentElement.scrollLeft = a.offsetLeft - a.parentElement.offsetLeft - 8; } else a.removeAttribute('aria-current'); });
     draws[key] && draws[key]();
   }
   tabs.forEach((t, i) => {
@@ -264,6 +287,8 @@ footer a { color: inherit; }
     .then((data) => {
       const idx = (group) => Object.entries(data.indices || {}).filter(([, s]) => s.group === group).map(([key, s]) => ({ key, ...s }));
       draws.fx = setupFx(data.fx || {});
+      draws.inflation = IndexPanel.render(document.querySelector('[data-rate="inflation"]'),
+        Object.entries(data.rates || {}).filter(([, s]) => s.group === 'inflation').map(([key, s]) => ({ key, ...s })), { rate: true, range: '10y' });
       draws.construction = IndexPanel.render(document.querySelector('[data-index="construction"]'), idx('construction'), { range: 'all' });
       draws.labour = IndexPanel.render(document.querySelector('[data-index="labour"]'), idx('labour'), { range: 'all' });
       document.getElementById('updated').textContent = `Data last updated ${d3.utcFormat('%-d %b %Y, %H:%M UTC')(new Date(data.updated))}.`;
@@ -275,7 +300,7 @@ footer a { color: inherit; }
 </script>
 <script>
 // keep ?view=compact / ?theme=… when switching section
-(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { a.href = a.getAttribute('href') + q; }); })();
+(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { const [p, h] = a.getAttribute('href').split('#'); a.href = p + q + (h ? '#' + h : ''); }); })();
 (() => {
   const bar = document.querySelector('.tabs'); if (!bar) return;
   const show = () => { const t = bar.querySelector('[aria-selected=true]'); if (t) bar.scrollLeft = t.offsetLeft - bar.offsetLeft - 16; };

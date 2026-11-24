@@ -8,14 +8,13 @@
   const cls = (v) => (v == null || !isFinite(v) || Math.abs(v) < 0.05 ? '' : v > 0 ? 'up' : 'down');
   const COLORS = ['--s1', '--s2', '--s3', '--s4', '--s5'];
   const DASH = { US: null, DE: '6 3', CN: '2 3' };
-  const FLAG = { US: 'US', DE: 'Germany', CN: 'China', EU: 'EU' };
   const periodLabel = (iso, freq) => {
     const d = new Date(iso + 'T00:00:00Z');
     return freq === 'Q' ? `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}` : d3.utcFormat('%b %Y')(d);
   };
 
-  function rebase(s) {
-    const base = Object.entries(s.data).filter(([d]) => d.startsWith('2021-')).map(([, v]) => v);
+  function rebase(s, rate) {
+    const base = rate ? [] : Object.entries(s.data).filter(([d]) => d.startsWith('2021-')).map(([, v]) => v);
     const b = base.length ? d3.mean(base) : null;
     const pts = Object.entries(s.data).sort(([a], [b2]) => (a < b2 ? -1 : 1))
       .map(([d, v]) => ({ d, x: new Date(d + 'T00:00:00Z'), v: b ? (v / b) * 100 : v, raw: v }));
@@ -23,9 +22,12 @@
   }
 
   function render(el, input, opts = {}) {
+    const rate = !!opts.rate;          // rate mode: annual rates in %, shown as published (no rebasing)
     const series = input.filter((s) => s && Object.keys(s.data || {}).length).map((s, i) => ({
-      ...rebase(s), color: s.color || COLORS[i % COLORS.length], dash: s.dash !== undefined ? s.dash : DASH[s.country] ?? null,
+      ...rebase(s, rate), color: s.color || COLORS[i % COLORS.length], dash: s.dash !== undefined ? s.dash : (rate ? null : DASH[s.country] ?? null),
     }));
+    const ref = rate ? 0 : 100;
+    const vfmt = rate ? (v) => `${fmt1(v)}%` : fmt1;
     el.replaceChildren();
     if (!series.length) {
       el.innerHTML = '<p class="sub">No index data yet - it appears after the next daily update.</p>';
@@ -39,7 +41,7 @@
         <div class="chart" data-chart></div>
         <div class="legend" data-legend></div>
       </div>
-      <p class="sub" style="margin-top:10px">Index, 2021 average = 100. ${opts.note || ''}</p>
+      <p class="sub" style="margin-top:10px">${rate ? 'Change against the same month a year earlier, in %.' : 'Index, 2021 average = 100.'} ${opts.note || ''}</p>
       <div class="table-wrap"><table data-table></table></div>`;
     const q = (s) => el.querySelector(s);
     const ranges = [['5y', '5 years'], ['10y', '10 years'], ['all', 'Since 2000']];
@@ -62,7 +64,15 @@
     }
 
     // latest values table
-    const rows = series.map((s) => {
+    const rows = rate ? series.map((s) => {
+      const last = s.pts.at(-1), prev = s.pts.at(-2);
+      const yearAgo = s.pts.find((p) => p.d === `${+last.d.slice(0, 4) - 1}${last.d.slice(4)}`);
+      const avg12 = s.pts.length >= 12 ? d3.mean(s.pts.slice(-12), (p) => p.v) : null;
+      const link = s.link ? `<a href="${s.link}">source</a>` : '';
+      const sw = `<span class="sw${s.dash ? ' dash' : ''}" style="background:${s.dash ? 'none' : css(s.color)};color:${css(s.color)}"></span>`;
+      return `<tr><td class="mkt">${sw}${s.label}<small>${s.desc || ''} ${link}</small></td><td>${periodLabel(last.d, s.freq)}</td>
+        <td class="big">${vfmt(last.v)}</td><td>${prev ? vfmt(prev.v) : '–'}</td><td>${yearAgo ? vfmt(yearAgo.v) : '–'}</td><td>${avg12 != null ? vfmt(avg12) : '–'}</td></tr>`;
+    }).join('') : series.map((s) => {
       const last = s.pts.at(-1);
       const yearAgo = s.pts.find((p) => p.d === `${+last.d.slice(0, 4) - 1}${last.d.slice(4)}`);
       const ch1y = yearAgo ? (last.raw / yearAgo.raw - 1) * 100 : null;
@@ -73,7 +83,9 @@
         <td>${periodLabel(last.d, s.freq)}</td><td class="num">${fmt1(last.v)}</td>
         <td class="num ${cls(ch1y)}">${pct(ch1y)}</td><td class="num ${cls(since21)}">${pct(since21)}</td></tr>`;
     }).join('');
-    q('[data-table]').innerHTML = `<thead><tr><th>Index</th><th>Latest</th><th class="num">2021 = 100</th>
+    q('[data-table]').innerHTML = rate
+      ? `<thead><tr><th>Country</th><th>Latest</th><th>Inflation</th><th>Month before</th><th>Year before</th><th>12-month average</th></tr></thead><tbody>${rows}</tbody>`
+      : `<thead><tr><th>Index</th><th>Latest</th><th class="num">2021 = 100</th>
       <th class="num">1 year</th><th class="num">Since 2021</th></tr></thead><tbody>${rows}</tbody>`;
 
     function draw() {
@@ -87,12 +99,12 @@
       const allPts = vis.flatMap((s) => s.v);
       const x = d3.scaleUtc().domain([d3.max([from, d3.min(allPts, (p) => p.x) || from]), lastAll]).range([m.l, W - m.r]);
       const ext = d3.extent(allPts, (p) => p.v);
-      const y = d3.scaleLinear().domain(ext[0] == null ? [80, 120] : [Math.min(ext[0], 100), Math.max(ext[1], 100)]).nice().range([H - m.b, m.t]);
+      const y = d3.scaleLinear().domain(ext[0] == null ? [ref - 20, ref + 20] : [Math.min(ext[0], ref), Math.max(ext[1], ref)]).nice().range([H - m.b, m.t]);
       const svg = d3.select(box).append('svg').attr('width', W).attr('height', H);
       svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(W < 560 ? 4 : 8).tickSizeOuter(0));
-      svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(6).tickSize(-(W - m.l - m.r)))
+      svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(6).tickSize(-(W - m.l - m.r)).tickFormat(rate ? (v) => `${v}%` : null))
         .call((g) => g.select('.domain').remove());
-      svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(100)).attr('y2', y(100))
+      svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(ref)).attr('y2', y(ref))
         .attr('stroke', css('--ink-2')).attr('stroke-opacity', 0.5).attr('stroke-dasharray', '2 3');
       const line = d3.line().x((p) => x(p.x)).y((p) => y(p.v));
       for (const s of vis) {
@@ -110,7 +122,7 @@
           if (!near.length) return;
           const ref = near.reduce((a, b) => (Math.abs(b.p.x - t) < Math.abs(a.p.x - t) ? b : a));
           rule.attr('x1', x(ref.p.x)).attr('x2', x(ref.p.x)).attr('opacity', 0.4);
-          tip.innerHTML = `<div class="tip-grid">${near.map((n) => `<span><span class="sw${n.s.dash ? ' dash' : ''}" style="background:${n.s.dash ? 'none' : css(n.s.color)};color:${css(n.s.color)}"></span>${n.s.label} <span class="tip-date">${periodLabel(n.p.d, n.s.freq)}</span></span><span class="v">${fmt1(n.p.v)}</span>`).join('')}</div>`;
+          tip.innerHTML = `<div class="tip-grid">${near.map((n) => `<span><span class="sw${n.s.dash ? ' dash' : ''}" style="background:${n.s.dash ? 'none' : css(n.s.color)};color:${css(n.s.color)}"></span>${n.s.label} <span class="tip-date">${periodLabel(n.p.d, n.s.freq)}</span></span><span class="v">${vfmt(n.p.v)}</span>`).join('')}</div>`;
           tip.hidden = false;
           const px = x(ref.p.x);
           tip.style.left = `${px > W / 2 ? px - tip.offsetWidth - 12 : px + 12}px`;

@@ -84,28 +84,38 @@ footer a { color: inherit; }
 }
 
 /* ---- commodity switcher (shared by all pages) ---- */
-.cnav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.cnav .brand { min-width: 124px; }
+.cnav-row { max-width: 100%; } .cnav-links { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .cnav .brand { font-size: 13px; font-weight: 700; font-stretch: 125%; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
 .cnav-links { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
 .cnav-links a { font-size: 15px; font-weight: 560; color: var(--ink-2); text-decoration: none; padding: 5px 16px; border-radius: 999px; white-space: nowrap; }
 .cnav-links a:hover { color: var(--ink); }
 .cnav-links a[aria-current="page"] { background: var(--ink); color: var(--bg); }
 .compact .cnav { margin-bottom: 12px; padding-bottom: 10px; }
-.cnav-econ { margin-left: 4px; }
 @media (max-width: 560px) { .cnav-links a { padding: 5px 12px; font-size: 14px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="cnav" aria-label="Commodities">
-    <a class="brand" href="../">Commodities</a>
-    <div class="cnav-links">
-      <a href="../">Power</a>
-      <a href="../oil-gas/" aria-current="page">Oil &amp; gas</a>
-      <a href="../metals/">Metals</a>
+  <nav class="cnav" aria-label="Sections">
+    <div class="cnav-row">
+      <a class="brand" href="../">Commodities</a>
+      <div class="cnav-links">
+        <a href="../">Power</a>
+        <a href="../oil-gas/" aria-current="page">Oil &amp; gas</a>
+        <a href="../metals/">Metals</a>
+      </div>
     </div>
-    <div class="cnav-links cnav-econ">
-      <a href="../economics/">Economics</a>
+    <div class="cnav-row">
+      <a class="brand" href="../economics/">Economics</a>
+      <div class="cnav-links">
+        <a href="../economics/#fx" data-sec="fx">FX rates</a>
+        <a href="../economics/#inflation" data-sec="inflation">Inflation</a>
+        <a href="../economics/#construction" data-sec="construction">Construction</a>
+        <a href="../economics/#labour" data-sec="labour">Labour costs</a>
+      </div>
     </div>
   </nav>
   <header>
@@ -743,7 +753,7 @@ footer a { color: inherit; }
 </script>
 <script>
 // keep ?view=compact / ?theme=… when switching commodity
-(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { a.href = a.getAttribute('href') + q; }); })();
+(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { const [p, h] = a.getAttribute('href').split('#'); a.href = p + q + (h ? '#' + h : ''); }); })();
 // on narrow screens, scroll the open sub-tab into view
 (() => {
   const bar = document.querySelector('.tabs'); if (!bar) return;
