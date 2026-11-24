@@ -15,6 +15,9 @@ Sources (all free, no key, open licences):
                      C236 articles of concrete, cement and plaster
         sts_copi_q   new residential buildings: construction prices (PRC_PRR) and costs (COST), 2021=100
         lc_lci_r2_q  labour cost index, construction (F) and whole economy (B-S), 2020=100
+        prc_hicp_minr  consumer price inflation (HICP, annual rate): Germany, Austria, euro area
+  - Inflation outside the EU: US CPI-U (BLS, FRED CPIAUCNS, annual rate calculated here) and UK CPI
+    annual rate (Office for National Statistics, series D7G7, JSON).
 
 Monthly values are stored under the first day of the month, quarterly values under the first day
 of the quarter. The pages rebase every index to its 2021 average = 100, so all lines start from
@@ -104,6 +107,26 @@ INDICES = [
          desc="Wages and salaries per hour worked, construction sector (Eurostat)"),
 ]
 PLAUSIBLE = (5, 2000)        # any index outside this range is a wrong series or unit
+PLAUSIBLE_RATE = (-20, 60)   # annual inflation rate in %
+
+# Annual consumer price inflation in %, monthly (stored in "rates")
+RATES = [
+    dict(key="infl_ea", group="inflation", country="EA", label="Euro area", source="eurostat", ds="prc_hicp_minr", freq="M",
+         filters=dict(geo="EA20", coicop18="TOTAL", unit="RCH_A"),
+         desc="Harmonised index of consumer prices (HICP), euro area, annual rate (Eurostat)"),
+    dict(key="infl_de", group="inflation", country="DE", label="Germany", source="eurostat", ds="prc_hicp_minr", freq="M",
+         filters=dict(geo="DE", coicop18="TOTAL", unit="RCH_A"),
+         desc="Harmonised index of consumer prices (HICP), Germany, annual rate (Eurostat)"),
+    dict(key="infl_at", group="inflation", country="AT", label="Austria", source="eurostat", ds="prc_hicp_minr", freq="M",
+         filters=dict(geo="AT", coicop18="TOTAL", unit="RCH_A"),
+         desc="Harmonised index of consumer prices (HICP), Austria, annual rate (Eurostat)"),
+    dict(key="infl_us", group="inflation", country="US", label="United States", source="fred_yoy", id="CPIAUCNS", freq="M",
+         desc="Consumer price index for all urban consumers (CPI-U), annual rate (BLS, via FRED)"),
+    dict(key="infl_uk", group="inflation", country="UK", label="United Kingdom", source="ons", id="d7g7", freq="M",
+         desc="Consumer prices index (CPI), annual rate (Office for National Statistics, series D7G7)"),
+]
+ONS_URL = "https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/{id}/mm23/data"
+MONTHS = {m: i for i, m in enumerate(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"], 1)}
 
 
 # ---------------------------------------------------------------- HTTP
@@ -179,6 +202,40 @@ def parse_fred_csv(text, series_id):
 
 def fetch_fred(spec):
     return parse_fred_csv(get(FRED_URL.format(id=spec["id"])), spec["id"])
+
+
+def fetch_fred_yoy(spec):
+    """Annual rate of a monthly price index: value / same month a year earlier - 1, in %."""
+    global FRED_FROM
+    keep, FRED_FROM = FRED_FROM, "1999-01-01"
+    try:
+        idx = fetch_fred(spec)
+    finally:
+        FRED_FROM = keep
+    out = {}
+    for d, v in idx.items():
+        prev = idx.get(f"{int(d[:4]) - 1}{d[4:]}")
+        if prev and d >= "2000-01-01":
+            out[d] = round((v / prev - 1) * 100, 1)
+    return out
+
+
+def fetch_ons(spec):
+    """ONS time series JSON: months = [{"date": "2026 JAN", "value": "3.0", ...}]."""
+    js = json.loads(get(ONS_URL.format(id=spec["id"])))
+    out = {}
+    for m in js.get("months", []):
+        mm = re.fullmatch(r"(\d{4}) ([A-Z]{3})", str(m.get("date", "")).strip().upper())
+        if not mm or mm.group(2) not in MONTHS:
+            continue
+        try:
+            v = float(m.get("value"))
+        except (TypeError, ValueError):
+            continue
+        d = f"{mm.group(1)}-{MONTHS[mm.group(2)]:02d}-01"
+        if d >= "2000-01-01":
+            out[d] = round(v, 1)
+    return out
 
 
 # ---------------------------------------------------------------- Eurostat (JSON-stat 2.0)
@@ -277,7 +334,35 @@ def main():
         elif old:
             indices[s["key"]] = old          # keep what was fetched earlier
 
-    out = {"fx": fx, "indices": indices}
+    rates = {}
+    for s in RATES:
+        old = store.get("rates", {}).get(s["key"], {})
+        meta = {k: s[k] for k in ("group", "country", "label", "source", "freq", "desc")}
+        meta["link"] = {"eurostat": EUROSTAT_DE.format(ds=s.get("ds", "")),
+                        "fred_yoy": f"https://fred.stlouisfed.org/series/{s.get('id')}",
+                        "ons": "https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7g7/mm23"}[s["source"]]
+        try:
+            if s["source"] == "eurostat":
+                got, _ = fetch_eurostat(s)
+            elif s["source"] == "fred_yoy":
+                got = fetch_fred_yoy(s)
+            else:
+                got = fetch_ons(s)
+            vals = sorted(got.values())
+            if vals and not PLAUSIBLE_RATE[0] <= vals[len(vals) // 2] <= PLAUSIBLE_RATE[1]:
+                print(f"::warning::{s['key']}: values do not look like inflation rates - not used")
+                got = {}
+            if got:
+                print(f"{s['key']:<20} {len(got):>4} months, latest {max(got)} = {got[max(got)]}%  ({s['source']})")
+        except Exception as e:
+            print(f"::warning::{s['key']}: {e} - stored values kept")
+            got = {}
+        if got:
+            rates[s["key"]] = {**meta, "data": dict(sorted(got.items()))}
+        elif old:
+            rates[s["key"]] = old
+
+    out = {"fx": fx, "indices": indices, "rates": rates}
     if {k: store.get(k) for k in out} == out:
         print("Nothing new - file left unchanged.")
         return
