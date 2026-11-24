@@ -99,6 +99,16 @@ SERIES = [
          desc="Dalian Commodity Exchange iron ore 62% Fe fines, main contract, settlement price per wet tonne at port, incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", id="LC0", vat=CN_VAT,
          desc="Guangzhou Futures Exchange battery-grade lithium carbonate (99.5% Li2CO3), main contract, settlement price incl. 13% VAT"),
+    # Coal is shown on the Fuels page (docs/oil-gas/), which reads group "coal" from metals.json
+    dict(key="coal_au", group="coal", label="Thermal coal Australia (IMF monthly)", unit="USD/t", source="fred",
+         id="PCOALAUUSDM", freq="monthly", expect=(20, 1000),
+         desc="IMF global price of thermal coal, Australia: monthly average of the Newcastle export price (6,000 kcal/kg, FOB), published one to two months later"),
+    dict(key="dce_jm", group="coal", label="DCE coking coal", unit="CNY/t", source="sina", id="JM0", vat=CN_VAT,
+         expect=(300, 6000),
+         desc="Dalian Commodity Exchange coking coal (metallurgical coal), main contract, settlement price incl. 13% VAT"),
+    dict(key="dce_j", group="coal", label="DCE coke", unit="CNY/t", source="sina", id="J0", vat=CN_VAT,
+         expect=(500, 8000),
+         desc="Dalian Commodity Exchange metallurgical coke, main contract, settlement price incl. 13% VAT"),
 ]
 # FX stored as USD per unit of the currency (the page expects that), from ECB rates per EUR
 FX_KEYS = ("EURUSD", "CNYUSD")
@@ -126,6 +136,10 @@ CURVES = [
          monthly=13, dec_years=0, desc="DCE iron ore futures (I), settlement prices incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", root="LC", vat=CN_VAT,
          monthly=13, dec_years=0, desc="GFEX lithium carbonate futures (LC), settlement prices incl. 13% VAT"),
+    dict(key="dce_jm", group="coal", label="DCE coking coal", unit="CNY/t", source="sina", root="JM", vat=CN_VAT,
+         expect=(300, 6000), monthly=13, dec_years=0, desc="DCE coking coal futures (JM), settlement prices incl. 13% VAT"),
+    dict(key="dce_j", group="coal", label="DCE coke", unit="CNY/t", source="sina", root="J", vat=CN_VAT,
+         expect=(500, 8000), monthly=13, dec_years=0, desc="DCE coke futures (J), settlement prices incl. 13% VAT"),
 ]
 CURVE_BACKFILL_DAYS = 400
 CURVE_REFRESH_DAYS = 10
