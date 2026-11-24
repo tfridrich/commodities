@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fuel prices · Brent, WTI, TTF, NBP, Henry Hub, coal · Commodities</title>
+<meta name="description" content="Daily Brent and WTI crude oil and TTF, NBP and Henry Hub natural gas prices, updated automatically every trading day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --bg: #F3F6F7; --surface: #FFFFFF; --ink: #15212B; --ink-2: #51606B; --rule: #D5DDE1; --grid: #E4EAED;
+  --s1: #0A6C93; --s2: #B2741A; --s3: #3D8A55; --s4: #6A4C9C; --s5: #B03A48;
+  --focus: #0A6C93; --gutter: 16px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101820; --surface: #16212B; --ink: #E7EDF0; --ink-2: #9AAAB5; --rule: #2A3945; --grid: #22303B;
+    --s1: #4DB3DB; --s2: #E2A54A; --s3: #6CC487; --s4: #A98EE0; --s5: #E57B87; --focus: #4DB3DB; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101820; --surface: #16212B; --ink: #E7EDF0; --ink-2: #9AAAB5; --rule: #2A3945; --grid: #22303B;
+  --s1: #4DB3DB; --s2: #E2A54A; --s3: #6CC487; --s4: #A98EE0; --s5: #E57B87; --focus: #4DB3DB; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Archivo", system-ui, sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 40px var(--gutter) 56px; }
+h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; font-weight: 640; font-stretch: 118%; letter-spacing: -0.01em; margin: 0 0 14px; }
+h2 { font-size: 21px; line-height: 1.25; font-weight: 620; font-stretch: 110%; margin: 0 0 4px; }
+.lede { font-size: 18px; color: var(--ink-2); margin: 22px 0 0; }
+.lede b { color: var(--ink); font-weight: 600; }
+.sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
+section { margin-top: 44px; }
+.hero { margin-top: 28px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { font: inherit; font-size: 14px; background: transparent; color: var(--ink-2); border: 0; padding: 6px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.chart { position: relative; min-height: 300px; }
+.chart svg { display: block; }
+.chart .tick text { fill: var(--ink-2); font-size: 12px; font-family: inherit; }
+.chart .tick line { stroke: var(--grid); }
+.chart .domain { stroke: var(--rule); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--ink-2); padding: 8px 0 4px; }
+.toggle { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 11px 3px 9px; display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
+.toggle[aria-pressed="false"] { color: var(--ink-2); background: transparent; border-style: dashed; }
+.toggle[aria-pressed="false"] .sw { opacity: .25; }
+.sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.sw.dash { background: none !important; border-top: 3px dashed currentColor; height: 0; }
+.tip { position: absolute; top: 8px; pointer-events: none; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); padding: 8px 10px; font-size: 13px; white-space: nowrap; z-index: 2; }
+.tip-date { color: var(--ink-2); margin-bottom: 4px; }
+.tip-grid { display: grid; grid-template-columns: auto auto; gap: 1px 14px; }
+.tip-grid .v { text-align: right; }
+.table-wrap { overflow-x: auto; }
+.table-scroll { max-height: 420px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+thead th { color: var(--ink-2); font-weight: 500; background: var(--bg); position: sticky; top: 0; }
+td.mkt { font-weight: 600; }
+td.mkt small { display: block; font-weight: 400; color: var(--ink-2); font-size: 12px; white-space: normal; min-width: 180px; max-width: 300px; }
+td.big { font-size: 20px; font-weight: 560; font-stretch: 104%; }
+.up { color: var(--s3); } .down { color: var(--s5); }
+.tabs { display: flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tabs button { font: inherit; font-size: 15px; font-weight: 520; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); padding: 8px 14px 9px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.notes { color: var(--ink-2); font-size: 14px; padding-left: 18px; margin-top: 36px; }
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 14px; }
+footer a { color: inherit; }
+.status { color: var(--ink-2); padding: 40px 0; }
+.compact .wrap { padding-top: 12px; padding-bottom: 12px; }
+.compact .full { display: none; }
+@media (max-width: 560px) {
+  .wrap { padding-top: 24px; }
+  .hero { padding: 12px 10px 8px; }
+  td.big { font-size: 17px; }
+}
+
+/* ---- commodity switcher (shared by all pages) ---- */
+.cnav { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0 0 26px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.cnav-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.cnav .brand { min-width: 124px; }
+.cnav-row { max-width: 100%; } .cnav-links { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.cnav .brand { font-size: 13px; font-weight: 700; font-stretch: 125%; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
+.cnav-links { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
+.cnav-links a { font-size: 15px; font-weight: 560; color: var(--ink-2); text-decoration: none; padding: 5px 16px; border-radius: 999px; white-space: nowrap; }
+.cnav-links a:hover { color: var(--ink); }
+.cnav-links a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.compact .cnav { margin-bottom: 12px; padding-bottom: 10px; }
+@media (max-width: 560px) { .cnav-links a { padding: 5px 12px; font-size: 14px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="cnav" aria-label="Sections">
+    <div class="cnav-row">
+      <a class="brand" href="../">Commodities</a>
+      <div class="cnav-links">
+        <a href="../">Power</a>
+        <a href="../oil-gas/" aria-current="page">Fuels</a>
+        <a href="../metals/">Metals</a>
+      </div>
+    </div>
+    <div class="cnav-row">
+      <a class="brand" href="../economics/">Economics</a>
+      <div class="cnav-links">
+        <a href="../economics/#fx" data-sec="fx">FX rates</a>
+        <a href="../economics/#inflation" data-sec="inflation">Inflation</a>
+        <a href="../economics/#construction" data-sec="construction">Construction</a>
+        <a href="../economics/#labour" data-sec="labour">Labour costs</a>
+      </div>
+    </div>
+  </nav>
+  <header>
+    <h1>Fuel prices: crude oil, natural gas and coal</h1>
+    <nav class="tabs" role="tablist" aria-label="Commodities">
+      <button type="button" role="tab" id="tab-oil" aria-controls="panel-oil" aria-selected="true">Crude oil</button>
+      <button type="button" role="tab" id="tab-gas" aria-controls="panel-gas" aria-selected="false" tabindex="-1">Natural gas</button>
+      <button type="button" role="tab" id="tab-coal" aria-controls="panel-coal" aria-selected="false" tabindex="-1">Coal</button>
+      <button type="button" role="tab" id="tab-curves" aria-controls="panel-curves" aria-selected="false" tabindex="-1">Forward curves</button>
+    </nav>
+  </header>
+
+  <div class="panel" id="panel-oil" role="tabpanel" aria-labelledby="tab-oil" data-group="oil"></div>
+  <div class="panel" id="panel-gas" role="tabpanel" aria-labelledby="tab-gas" data-group="gas" hidden></div>
+  <div class="panel" id="panel-coal" role="tabpanel" aria-labelledby="tab-coal" data-group="coal" hidden></div>
+  <div class="panel" id="panel-curves" role="tabpanel" aria-labelledby="tab-curves" hidden>
+    <p class="lede" data-lede>Loading the forward curves…</p>
+    <div class="hero">
+      <div class="controls" data-controls></div>
+      <div class="chart" data-chart></div>
+      <div class="legend" data-legend></div>
+    </div>
+    <section>
+      <h2>Calendar and seasonal strips</h2>
+      <p class="sub" data-strips-sub></p>
+      <div class="table-wrap"><table data-strips></table></div>
+    </section>
+    <section class="full">
+      <h2>Contract months</h2>
+      <p class="sub" data-contracts-sub></p>
+      <div class="table-wrap table-scroll"><table data-contracts></table></div>
+    </section>
+  </div>
+
+  <template id="panel-tpl">
+    <p class="lede" data-lede>Loading the latest prices…</p>
+    <div class="hero">
+      <div class="controls" data-controls></div>
+      <div class="chart" data-chart></div>
+      <div class="legend" data-legend></div>
+    </div>
+    <section>
+      <h2>Latest prices</h2>
+      <p class="sub" data-latest-sub></p>
+      <div class="table-wrap"><table data-latest></table></div>
+    </section>
+    <section class="full">
+      <h2>Averages over standard periods</h2>
+      <p class="sub" data-unit-sub></p>
+      <div class="table-wrap"><table data-periods></table></div>
+    </section>
+    <section class="full">
+      <h2>Yearly averages</h2>
+      <p class="sub" data-unit-sub></p>
+      <div class="table-wrap"><table data-yearly></table></div>
+    </section>
+    <section class="full">
+      <h2>Monthly averages</h2>
+      <p class="sub" data-unit-sub></p>
+      <div class="table-wrap table-scroll"><table data-monthly></table></div>
+    </section>
+  </template>
+
+  <ul class="notes full">
+    <li>Prices are daily closes of the front-month futures contract. When a contract expires the series rolls to the next month, which can cause a step in the line.</li>
+    <li>Brent, TTF and NBP are the NYMEX contracts that settle against ICE Brent, ICE Endex TTF and ICE NBP; they track the ICE benchmarks closely but are not ICE's official settlement prices.</li>
+    <li>Unit conversion: 1 MWh = 3.412 MMBtu = 34.12 therm. Currencies are converted with the EUR/USD, GBP/USD and CNY/USD rate of the same day (or the latest day before it).</li>
+    <li>Forward curves are the daily settlement prices of each NYMEX contract month (DCE for coking coal and coke). Yahoo Finance lists only some of the later months (Brent in particular), and contracts that have expired drop out, so older curves start later. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the front-month price from the Crude oil and Natural gas tabs; the flat bars are the actual yearly averages for past years and the Cal strips for the years ahead.</li>
+    <li>No forward curve is shown for TTF and NBP: the exchanges that host them (ICE Endex, EEX) license their settlement prices and do not allow automated republication.</li>
+    <li>Spot prices marked "EIA" are the US Energy Information Administration's daily spot assessments. They appear once a week, a few days after the trading day.</li>
+    <li>Coal comes in two kinds. Thermal (steam) coal is burnt in power plants; metallurgical (coking) coal is baked into coke, which reduces iron ore to iron in blast furnaces. The daily European and international thermal coal benchmarks (API2 Rotterdam, API4 Richards Bay, Newcastle globalCOAL) and the seaborne coking coal assessments (Australian premium hard coking coal) are licensed by Argus, McCloskey and Platts, and the Chinese thermal coal futures on the Zhengzhou exchange are no longer actively traded, so thermal coal is shown as the IMF's monthly average of the Australian (Newcastle, 6,000 kcal/kg FOB) export price, drawn as a flat step for each month and published one to two months later.</li>
+    <li>Coking coal and coke are the daily settlement prices of the Dalian Commodity Exchange (DCE) main contracts, for delivery in China and incl. 13% VAT; use "excl. VAT" to compare them with the export price. About 1.3–1.4 t of coking coal makes 1 t of coke. Their forward curves are on the Forward curves tab.</li>
+    <li>LNG: the Asian benchmark JKM (S&amp;P Global Platts) and the CME futures on it are licensed, and ACER's daily EU LNG assessment does not allow automated downloads, so LNG is shown as two free monthly prices. "LNG Asia" is the IMF's series for Japan's average LNG import price, which is mostly long-term contracts linked to oil prices, so it follows Brent with a delay rather than the spot market. "US LNG exports" is the EIA's average price of US LNG at the export terminal (before shipping), converted from USD per thousand cubic feet at 1.037 MMBtu/Mcf. Both appear one to a few months after the month ends and are drawn as a flat step for each month.</li>
+  </ul>
+
+  <footer>
+    <p id="updated"></p>
+    <p class="full">Futures prices via Yahoo Finance; when Yahoo is unavailable, WTI and Henry Hub front-month settlements come from the <a href="https://www.eia.gov/opendata/">EIA Open Data API</a>, which also provides the spot prices. Monthly Asian LNG and Australian thermal coal prices from the <a href="https://data.imf.org/">IMF Primary Commodity Prices</a> via FRED (<a href="https://fred.stlouisfed.org/series/PNGASJPUSDM">LNG</a>, <a href="https://fred.stlouisfed.org/series/PCOALAUUSDM">coal</a>). Dalian coking coal and coke futures via Sina Finance. Exchange rates from the <a href="https://data.ecb.europa.eu/">European Central Bank</a>. For information only, no warranty.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('view') === 'compact') document.documentElement.classList.add('compact');
+  if (params.get('theme') === 'light' || params.get('theme') === 'dark') document.documentElement.dataset.theme = params.get('theme');
+
+  // ---------- configuration ----------
+  // Display per series key. Series that are not in the data file are skipped, so new
+  // benchmarks only need an entry here (and in scripts/update_oil_gas.py).
+  const LOOK = {
+    brent: { color: '--s1' }, wti: { color: '--s2' },
+    brent_spot: { color: '--s1', dash: '5 3', off: true }, wti_spot: { color: '--s2', dash: '5 3', off: true },
+    ttf: { color: '--s1' }, nbp: { color: '--s3' }, hh: { color: '--s2' },
+    hh_spot: { color: '--s2', dash: '5 3', off: true },
+    lng_asia: { color: '--s4', dash: '6 3' }, lng_us: { color: '--s5', dash: '6 3' },
+    coal_au: { color: '--s1', dash: '6 3' }, dce_jm: { color: '--s2' }, dce_j: { color: '--s3' },
+  };
+  const SPREADS = {
+    oil: [{ key: 'brent_wti', label: 'Brent – WTI', a: 'brent', b: 'wti', color: '--s4' }],
+    gas: [{ key: 'ttf_hh', label: 'TTF – Henry Hub', a: 'ttf', b: 'hh', color: '--s4' },
+          { key: 'ttf_nbp', label: 'TTF – NBP', a: 'ttf', b: 'nbp', color: '--s5' }],
+  };
+  // Units: currency and the quantity of one unit in the group's base (bbl for oil, MWh for gas)
+  const UNIT_INFO = {
+    'USD/bbl': { ccy: 'USD', q: 1, pre: '$', post: '/bbl', d: 2 },
+    'EUR/bbl': { ccy: 'EUR', q: 1, pre: '€', post: '/bbl', d: 2 },
+    'EUR/MWh': { ccy: 'EUR', q: 1, pre: '€', post: '/MWh', d: 2 },
+    'USD/MMBtu': { ccy: 'USD', q: 0.29307107, pre: '$', post: '/MMBtu', d: 3 },
+    'GBp/therm': { ccy: 'GBp', q: 0.029307107, pre: '', post: 'p/therm', d: 2 },
+    'USD/MWh': { ccy: 'USD', q: 1, pre: '$', post: '/MWh', d: 2 },
+    'USD/t': { ccy: 'USD', q: 1, pre: '$', post: '/t', d: 2 },
+    'EUR/t': { ccy: 'EUR', q: 1, pre: '€', post: '/t', d: 2 },
+    'CNY/t': { ccy: 'CNY', q: 1, pre: '¥', post: '/t', d: 0 },
+  };
+  const UNITS = { oil: ['USD/bbl', 'EUR/bbl'], gas: ['EUR/MWh', 'USD/MMBtu', 'GBp/therm'], coal: ['USD/t', 'EUR/t', 'CNY/t'] };
+  // Chinese futures (coal) include VAT (series field `vat`, e.g. 0.13); shared across all tabs
+  const VAT = { ex: params.get('vat') === 'ex' };
+  const vatAdj = (s, v) => (v == null || !s.vat || !VAT.ex ? v : v / (1 + s.vat));
+
+  // ---------- helpers ----------
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const fmt = (v, d = 2) => (v == null || !Number.isFinite(v) ? '—' : d3.format(`,.${d}f`)(v));
+  const pct = (v) => (v == null || !Number.isFinite(v) ? '—' : Math.abs(v) < 0.05 ? '0.0%' : (v > 0 ? '+' : v < 0 ? '−' : '') + d3.format('.1f')(Math.abs(v)) + '%');
+  const money = (v, unit) => { const u = UNIT_INFO[unit]; return v == null ? '—' : `${u.pre}${fmt(v, u.d)}${u.post}`; };
+  const toDate = (s) => new Date(s + 'T00:00:00Z');
+  const iso = (t) => t.toISOString().slice(0, 10);
+  const dayFmt = d3.utcFormat('%a %-d %b %Y');
+  const weekOf = (s) => { const t = toDate(s); return iso(new Date(t.getTime() - ((t.getUTCDay() + 6) % 7) * 86400000)); };
+  const KEYFN = { daily: (s) => s, weekly: weekOf, monthly: (s) => s.slice(0, 7), yearly: (s) => s.slice(0, 4) };
+  const PARSE = { daily: toDate, weekly: toDate, monthly: (k) => toDate(k + '-01'), yearly: (k) => toDate(k + '-01-01') };
+  const LABEL = { daily: dayFmt, weekly: (t) => 'Week of ' + d3.utcFormat('%-d %b %Y')(t), monthly: d3.utcFormat('%B %Y'), yearly: d3.utcFormat('%Y') };
+  const mean = (a) => { const v = a.filter((x) => x != null && Number.isFinite(x)); return v.length ? d3.mean(v) : null; };
+
+  function seg(name, opts, current, onPick) {
+    const g = document.createElement('div'); g.className = 'seg'; g.setAttribute('role', 'group'); g.setAttribute('aria-label', name);
+    for (const [v, t] of opts) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.setAttribute('aria-pressed', String(v === current));
+      b.addEventListener('click', () => { g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); onPick(v); });
+      g.append(b);
+    }
+    return g;
+  }
+  const vatSeg = (onPick) => seg('VAT', [['incl', 'Chinese prices incl. VAT'], ['ex', 'excl. VAT']], VAT.ex ? 'ex' : 'incl', (v) => { VAT.ex = v === 'ex'; onPick(); });
+  function swatch(s) { const i = document.createElement('i'); i.className = 'sw' + (s.dash ? ' dash' : ''); i.style.background = `var(${s.color})`; i.style.color = `var(${s.color})`; return i; }
+
+  // FX lookup with forward fill: rate(ccy, date) = USD per unit of ccy
+  function makeFx(fx) {
+    const tables = {};
+    for (const [pair, m] of Object.entries(fx || {})) {
+      const dates = Object.keys(m).sort();
+      tables[pair.slice(0, 3)] = { dates, vals: dates.map((d) => m[d]) };
+    }
+    return (ccy, date) => {
+      if (ccy === 'USD') return 1;
+      if (ccy === 'GBp') { const r = rateOf('GBP', date); return r == null ? null : r / 100; }
+      return rateOf(ccy, date);
+    };
+    function rateOf(ccy, date) {
+      const t = tables[ccy]; if (!t || !t.dates.length) return null;
+      const i = d3.bisectRight(t.dates, date) - 1;
+      return i < 0 ? null : t.vals[i];  // no conversion before the first exchange rate
+    }
+  }
+  function converter(fxRate) {
+    return (v, from, to, date) => {
+      if (v == null) return null;
+      if (from === to) return v;
+      const a = UNIT_INFO[from], b = UNIT_INFO[to];
+      const ra = fxRate(a.ccy, date), rb = fxRate(b.ccy, date);
+      if (ra == null || rb == null) return null;
+      return (v / a.q) * ra / rb * b.q;
+    };
+  }
+
+  // ---------- chart ----------
+  function lineChart(el, { rows, series, unit, label }) {
+    el.replaceChildren();
+    const vals = rows.flatMap((r) => series.map((s) => r[s.key])).filter((v) => v != null && Number.isFinite(v));
+    if (!vals.length) { const p = document.createElement('p'); p.className = 'status'; p.textContent = 'No data for this selection.'; el.append(p); return; }
+    const W = Math.max(280, el.clientWidth), H = el.clientWidth < 500 ? 260 : 340;
+    const lo = Math.min(0, d3.min(vals)), hi = d3.max(vals);
+    const y = d3.scaleLinear().domain([lo < 0 ? lo * 1.05 : 0, hi * 1.05 || 1]).nice().range([H - 26, 8]);
+    const svg = d3.select(el).append('svg').attr('width', W).attr('height', H).attr('role', 'img').attr('aria-label', label);
+    const yAxis = svg.append('g').call(d3.axisLeft(y).ticks(6).tickSize(0).tickFormat(d3.format(',.0f')));
+    let ml = 0; yAxis.selectAll('text').each(function () { ml = Math.max(ml, this.getComputedTextLength()); });
+    ml = Math.ceil(ml) + 10;
+    yAxis.attr('transform', `translate(${ml},0)`).select('.domain').remove();
+    svg.insert('g', ':first-child').attr('transform', `translate(${ml},0)`)
+      .call(d3.axisLeft(y).ticks(6).tickSize(-(W - ml - 6)).tickFormat('')).call((g) => g.select('.domain').remove());
+    if (lo < 0) svg.append('line').attr('x1', ml).attr('x2', W - 6).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', css('--ink-2'));
+    const ext = d3.extent(rows, (r) => r.x);
+    const x = d3.scaleUtc().domain(ext).range([ml + 4, W - 8]);
+    const room = Math.max(2, Math.floor((W - ml) / 80));
+    const spanDays = (ext[1] - ext[0]) / 86400000, spanYears = spanDays / 365.25;
+    let ticks, tf;
+    if (spanDays <= 75) { const k = [1, 2, 3, 7, 14].find((v) => spanDays / v <= room) || 14, d0 = d3.utcDay.floor(ext[0]); ticks = d3.utcDay.filter((d) => d3.utcDay.count(d0, d) % k === 0); tf = d3.utcFormat('%-d %b'); }
+    else if (spanYears > 2) { ticks = d3.utcYear.every(Math.max(1, Math.ceil((spanYears + 1) / room))); tf = d3.utcFormat('%Y'); }
+    else { const mo = Math.max(1, Math.round(spanYears * 12)); ticks = d3.utcMonth.every([1, 2, 3, 6, 12].find((k) => mo / k <= room) || 12); tf = d3.utcFormat('%b %y'); }
+    svg.append('g').attr('transform', `translate(0,${H - 26})`).call(d3.axisBottom(x).ticks(ticks).tickSizeOuter(0).tickFormat(tf));
+    for (const s of series) {
+      svg.append('path').datum(rows).attr('fill', 'none').attr('stroke', css(s.color))
+        .attr('stroke-width', rows.length > 400 ? 1.1 : 1.8).attr('stroke-dasharray', s.dash || null)
+        .attr('d', d3.line().defined((r) => r[s.key] != null).x((r) => x(r.x)).y((r) => y(r[s.key])));
+      if (rows.length <= 30) svg.append('g').selectAll('circle').data(rows.filter((r) => r[s.key] != null)).join('circle').attr('r', 3)
+        .attr('cx', (r) => x(r.x)).attr('cy', (r) => y(r[s.key])).attr('fill', s.dash ? css('--surface') : css(s.color)).attr('stroke', css(s.color)).attr('stroke-width', 1.5);
+    }
+    const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; el.append(tip);
+    const guide = svg.append('line').attr('y1', 8).attr('y2', H - 26).attr('stroke', css('--ink-2')).attr('stroke-dasharray', '2 3').attr('opacity', 0);
+    const xs = rows.map((r) => r.x.getTime());
+    const show = (ev) => {
+      const [mx] = d3.pointer(ev, svg.node());
+      const i = Math.max(0, Math.min(rows.length - 1, d3.bisectCenter(xs, x.invert(mx).getTime())));
+      const r = rows[i];
+      guide.attr('x1', x(r.x)).attr('x2', x(r.x)).attr('opacity', 1);
+      tip.replaceChildren();
+      const d = document.createElement('div'); d.className = 'tip-date'; d.textContent = `${r.label} · ${unit}`; tip.append(d);
+      const g = document.createElement('div'); g.className = 'tip-grid';
+      for (const s of series) {
+        const n = document.createElement('div'); n.append(swatch(s), s.label);
+        const v = document.createElement('div'); v.className = 'v'; v.textContent = fmt(r[s.key], UNIT_INFO[unit].d);
+        g.append(n, v);
+      }
+      tip.append(g); tip.hidden = false;
+      const px = x(r.x), tw = tip.offsetWidth;
+      tip.style.left = (px + 14 + tw > W ? Math.max(0, px - tw - 14) : px + 14) + 'px';
+    };
+    svg.append('rect').attr('x', ml).attr('width', W - ml).attr('height', H).attr('fill', 'transparent')
+      .on('pointermove', show).on('pointerdown', show).on('pointerleave', () => { tip.hidden = true; guide.attr('opacity', 0); });
+  }
+
+  function simpleTable(t, head, rows) {
+    t.replaceChildren();
+    const hr = t.createTHead().insertRow();
+    head.forEach((h) => { const th = document.createElement('th'); th.textContent = h; hr.append(th); });
+    const tb = t.createTBody();
+    for (const r of rows) {
+      const tr = tb.insertRow();
+      r.forEach((c, i) => {
+        const td = tr.insertCell();
+        if (c instanceof Node) td.append(c); else td.textContent = c;
+        if (i === 0) td.className = 'mkt';
+      });
+    }
+    return tb;
+  }
+
+  // ---------- one panel per group ----------
+  function setupPanel(panel, data, fxRate) {
+    const group = panel.dataset.group;
+    panel.append(document.getElementById('panel-tpl').content.cloneNode(true));
+    const q = (s) => panel.querySelector(s);
+    const conv = converter(fxRate);
+    const series = Object.entries(data.series).filter(([, s]) => s.group === group && Object.keys(s.data).length)
+      .map(([key, s]) => ({ key, ...s, ...(LOOK[key] || { color: '--ink-2' }), dates: Object.keys(s.data) }));
+    if (!series.length) { q('[data-lede]').textContent = 'No prices yet - the first update has not run.'; return () => {}; }
+    const spreads = (SPREADS[group] || []).filter((sp) => series.some((s) => s.key === sp.a) && series.some((s) => s.key === sp.b))
+      .map((sp) => ({ ...sp, spread: true, off: true }));
+    const all = [...series, ...spreads];
+    // Monthly series (data keyed YYYY-MM-01) don't add days to the axis: each day shows the
+    // value of its month, which draws a step line next to the daily prices.
+    const isM = (s) => s.freq === 'monthly';
+    const axisSeries = series.some((s) => !isM(s)) ? series.filter((s) => !isM(s)) : series;
+    const dates = [...new Set(axisSeries.flatMap((s) => s.dates))].sort();
+    const unitParam = params.get('unit');
+    const st = { gran: 'daily', range: '365', unit: UNITS[group].includes(unitParam) ? unitParam : UNITS[group][0],
+                 on: Object.fromEntries(all.map((s) => [s.key, !s.off])) };
+
+    let daily = [];   // [{date, key: value in st.unit}]
+    function buildDaily() {
+      daily = dates.map((date) => {
+        const r = { date };
+        for (const s of series) r[s.key] = conv(vatAdj(s, s.data[isM(s) ? date.slice(0, 7) + '-01' : date]), s.unit, st.unit, date);
+        for (const sp of spreads) r[sp.key] = r[sp.a] != null && r[sp.b] != null ? r[sp.a] - r[sp.b] : null;
+        return r;
+      });
+    }
+    function aggregate(gran) {
+      const m = new Map();
+      for (const r of daily) {
+        const k = KEYFN[gran](r.date);
+        if (!m.has(k)) m.set(k, []);
+        m.get(k).push(r);
+      }
+      return [...m.entries()].map(([k, rs]) => {
+        const o = { key: k };
+        for (const s of all) o[s.key] = mean(rs.map((r) => r[s.key]));
+        return o;
+      });
+    }
+
+    // controls
+    const rangeSeg = seg('Time range', [['30', '30 days'], ['90', '90 days'], ['365', '1 year'], ['1095', '3 years'], ['1826', '5 years'], ['all', 'All']], st.range, (v) => { st.range = v; draw(); });
+    q('[data-controls]').append(
+      seg('Resolution', [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['yearly', 'Yearly']], st.gran, (v) => { st.gran = v; rangeSeg.hidden = v === 'yearly'; draw(); }),
+      rangeSeg,
+      seg('Unit', UNITS[group].map((u) => [u, u.replace('GBp/therm', 'p/therm')]), st.unit, (v) => { st.unit = v; buildDaily(); draw(); tables(); }));
+    const vatSlot = document.createElement('span');
+    if (series.some((s) => s.vat)) {
+      q('[data-controls]').append(vatSlot);
+      const refreshVat = () => vatSlot.replaceChildren(vatSeg(() => document.dispatchEvent(new Event('vatchange'))));
+      refreshVat();
+      document.addEventListener('vatchange', () => { refreshVat(); buildDaily(); tables(); draw(); });
+    }
+    for (const s of all) {
+      const t = document.createElement('button'); t.type = 'button'; t.className = 'toggle'; t.setAttribute('aria-pressed', String(st.on[s.key]));
+      t.append(swatch(s), s.label);
+      t.addEventListener('click', () => {
+        if (st.on[s.key] && Object.values(st.on).filter(Boolean).length === 1) return;
+        st.on[s.key] = !st.on[s.key]; t.setAttribute('aria-pressed', String(st.on[s.key])); draw();
+      });
+      q('[data-legend]').append(t);
+    }
+
+    function draw() {
+      if (panel.hidden) return;
+      let rows = aggregate(st.gran).map((r) => ({ ...r, x: PARSE[st.gran](r.key), label: LABEL[st.gran](PARSE[st.gran](r.key)) }));
+      if (st.gran !== 'yearly' && st.range !== 'all' && rows.length) {
+        const cut = rows.at(-1).x.getTime() - Number(st.range) * 86400000;
+        rows = rows.filter((r) => r.x.getTime() >= cut);
+      }
+      const shown = all.filter((s) => st.on[s.key]);
+      rows = rows.filter((r) => shown.some((s) => r[s.key] != null));
+      lineChart(q('[data-chart]'), { rows, series: shown, unit: st.unit, label: `${st.gran} ${group} prices in ${st.unit}` });
+    }
+
+    // latest prices and changes, in each benchmark's own unit
+    function lastOnOrBefore(s, date) {
+      const i = d3.bisectRight(s.dates, date) - 1;
+      return i >= 0 ? s.data[s.dates[i]] : null;
+    }
+    function latestTable() {
+      const head = ['Benchmark', 'Last close', `In ${st.unit.replace('GBp/therm', 'p/therm')}${VAT.ex && series.some((s) => s.vat) ? ' excl. VAT' : ''}`, 'Day', '1 day', '1 week', '1 month', 'Year to date', '1 year'];
+      const rows = series.map((s) => {
+        const d = s.dates.at(-1), v = s.data[d], t = toDate(d);
+        const back = (days) => lastOnOrBefore(s, iso(new Date(t.getTime() - days * 86400000)));
+        const prev = !isM(s) && s.dates.length > 1 ? s.data[s.dates.at(-2)] : null;
+        const ytd = lastOnOrBefore(s, `${Number(d.slice(0, 4)) - 1}-12-31`);
+        const ch = (base) => { const sp = document.createElement('span'); if (base == null || !base) { sp.textContent = '—'; return sp; } const p = (v / base - 1) * 100; sp.textContent = pct(p); sp.className = p > 0 ? 'up' : p < 0 ? 'down' : ''; return sp; };
+        const name = document.createElement('span'); name.append(swatch(s), s.label);
+        const small = document.createElement('small'); small.textContent = s.desc; name.append(small);
+        const big = document.createElement('span'); big.textContent = money(v, s.unit);
+        return [name, big, money(conv(vatAdj(s, v), s.unit, st.unit, d), st.unit), d3.utcFormat(isM(s) ? '%b %Y' : '%-d %b')(t), ch(prev), ch(isM(s) ? null : back(7)), ch(back(30)), ch(ytd), ch(back(365))];
+      });
+      const tb = simpleTable(q('[data-latest]'), head, rows);
+      tb.querySelectorAll('tr').forEach((tr) => tr.cells[1].classList.add('big'));
+      q('[data-latest-sub]').textContent = (series.some((s) => s.vat) ? 'Last close in each benchmark\'s own unit (Chinese prices incl. 13% VAT). ' : '') +
+        'Price changes are in each benchmark\'s own unit and currency.' +
+        (series.some(isM) ? ` Monthly ${group === 'coal' ? 'IMF coal prices' : 'LNG prices'} show the latest published month; their "1 month" change is against the month before.` : '');
+    }
+    function periodTable() {
+      const last = dates.at(-1), t = toDate(last), y = Number(last.slice(0, 4));
+      const between = (from, to) => daily.filter((r) => r.date >= from && r.date <= to);
+      const back = (days) => iso(new Date(t.getTime() - (days - 1) * 86400000));
+      const periods = [
+        ['Last 7 days', back(7), last], ['Last 30 days', back(30), last], ['Last 90 days', back(90), last],
+        ['Last 365 days', back(365), last], [`Year to date ${y}`, `${y}-01-01`, last], [`${y - 1}`, `${y - 1}-01-01`, `${y - 1}-12-31`],
+      ];
+      const cols = all;
+      simpleTable(q('[data-periods]'), ['Period', ...cols.map((s) => s.label)],
+        periods.map(([l, a, b]) => { const rs = between(a, b); return [l, ...cols.map((s) => fmt(mean(rs.map((r) => r[s.key])), UNIT_INFO[st.unit].d))]; }));
+    }
+    function groupTables() {
+      const d = UNIT_INFO[st.unit].d;
+      simpleTable(q('[data-yearly]'), ['Year', ...all.map((s) => s.label)],
+        aggregate('yearly').reverse().map((r) => [r.key, ...all.map((s) => fmt(r[s.key], d))]));
+      simpleTable(q('[data-monthly]'), ['Month', ...all.map((s) => s.label)],
+        aggregate('monthly').reverse().map((r) => [d3.utcFormat('%b %Y')(toDate(r.key + '-01')), ...all.map((s) => fmt(r[s.key], d))]));
+    }
+    function tables() {
+      latestTable(); periodTable(); groupTables();
+      panel.querySelectorAll('[data-unit-sub]').forEach((p) => { p.textContent = `Average of the daily closes in ${st.unit.replace('GBp/therm', 'pence/therm')}.${series.some((s) => s.vat) ? ` Chinese prices ${VAT.ex ? 'excluding' : 'including'} 13% VAT.` : ''}${spreads.length ? ' Spreads are the first benchmark minus the second.' : ''}`; });
+    }
+    function lede() {
+      const L = q('[data-lede]'); L.replaceChildren();
+      const b = (t) => Object.assign(document.createElement('b'), { textContent: t });
+      const main = series.filter((s) => s.source !== 'eia' && !isM(s));
+      if (!main.length) return;
+      const d = main.map((s) => s.dates.at(-1)).sort().at(-1);
+      L.append(`Closing prices on ${dayFmt(toDate(d))}: `);
+      main.forEach((s, i) => {
+        const dd = s.dates.at(-1), v = s.data[dd], p = s.dates.length > 1 ? (v / s.data[s.dates.at(-2)] - 1) * 100 : null;
+        L.append(i ? (i === main.length - 1 ? ' and ' : ', ') : '', `${s.label} `, b(money(v, s.unit)), ` (${pct(p)}${dd !== d ? `, ${d3.utcFormat('%-d %b')(toDate(dd))}` : ''})`);
+      });
+      L.append('.');
+    }
+
+    buildDaily(); lede(); tables();
+    return draw;
+  }
+
+  // ---------- forward curves ----------
+  const CURVE_UNITS = { oil: ['USD/bbl', 'EUR/bbl'], gas: ['USD/MMBtu', 'EUR/MWh'], coal: ['CNY/t', 'USD/t', 'EUR/t'] };
+  const COMPARE = [
+    { key: 'latest', days: 0, label: 'Latest', color: '--s1', width: 2.4 },
+    { key: 'w1', days: 7, label: '1 week earlier', color: '--s2' },
+    { key: 'm1', days: 30, label: '1 month earlier', color: '--s3' },
+    { key: 'm3', days: 91, label: '3 months earlier', color: '--s4' },
+    { key: 'm6', days: 182, label: '6 months earlier', color: '--s5' },
+    { key: 'y1', days: 365, label: '1 year earlier', color: '--ink-2', dash: '5 3' },
+  ];
+  // past prices shown with the curve: front-month history of the price tabs, by curve key
+  const EXTRAS = [
+    { key: 'hist', label: 'History (monthly average, front month)', color: '--ink', dash: '1.5 3.5', width: 2, on: true },
+    { key: 'strips', label: 'Calendar-year averages and Cal strips', color: '--ink', width: 2.4, on: true },
+  ];
+  const ymDate = (ym) => toDate(ym + '-01');
+  const ymLabel = (ym) => d3.utcFormat('%b %Y')(ymDate(ym));
+
+  function curveChart(el, { lines, unit, label, today }) {
+    el.replaceChildren();
+    const pts = lines.flatMap((l) => l.points).filter((p) => p[1] != null);
+    if (!pts.length) { const p = document.createElement('p'); p.className = 'status'; p.textContent = 'No curve for this selection.'; el.append(p); return; }
+    const W = Math.max(280, el.clientWidth), H = el.clientWidth < 500 ? 260 : 340;
+    const [lo, hi] = d3.extent(pts, (p) => p[1]);
+    const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1;
+    const y = d3.scaleLinear().domain([lo - pad, hi + pad]).nice().range([H - 26, 8]);
+    const svg = d3.select(el).append('svg').attr('width', W).attr('height', H).attr('role', 'img').attr('aria-label', label);
+    const dec = hi - lo < 10 ? 1 : 0;
+    const yAxis = svg.append('g').call(d3.axisLeft(y).ticks(6).tickSize(0).tickFormat(d3.format(`,.${dec}f`)));
+    let ml = 0; yAxis.selectAll('text').each(function () { ml = Math.max(ml, this.getComputedTextLength()); });
+    ml = Math.ceil(ml) + 10;
+    yAxis.attr('transform', `translate(${ml},0)`).select('.domain').remove();
+    svg.insert('g', ':first-child').attr('transform', `translate(${ml},0)`)
+      .call(d3.axisLeft(y).ticks(6).tickSize(-(W - ml - 6)).tickFormat('')).call((g) => g.select('.domain').remove());
+    const ext = d3.extent(pts, (p) => p[0]);
+    const x = d3.scaleUtc().domain(ext).range([ml + 6, W - 10]);
+    const room = Math.max(2, Math.floor((W - ml) / 70));
+    const months = Math.max(1, d3.utcMonth.count(ext[0], ext[1]));
+    const ticks = months > 30 ? d3.utcYear.every(Math.max(1, Math.ceil(months / 12 / room))) : d3.utcMonth.every([1, 2, 3, 6, 12].find((k) => months / k <= room) || 12);
+    svg.append('g').attr('transform', `translate(0,${H - 26})`)
+      .call(d3.axisBottom(x).ticks(ticks).tickSizeOuter(0).tickFormat(months > 30 ? d3.utcFormat('%Y') : d3.utcFormat('%b %y')));
+    for (const l of [...lines].reverse()) {
+      const c = css(l.color);
+      svg.append('path').datum(l.points).attr('fill', 'none').attr('stroke', c).attr('stroke-width', l.width || 1.6)
+        .attr('stroke-dasharray', l.dash || null).attr('stroke-linecap', l.dash && l.dash.startsWith('1.5') ? 'round' : null)
+        .attr('d', d3.line().defined((p) => p[1] != null).x((p) => x(p[0])).y((p) => y(p[1])));
+      if (!l.noDots && l.points.length <= 40) svg.append('g').selectAll('circle').data(l.points).join('circle').attr('r', l.width ? 3 : 2.2)
+        .attr('cx', (p) => x(p[0])).attr('cy', (p) => y(p[1])).attr('fill', c);
+    }
+    if (today && today >= ext[0] && today <= ext[1]) {
+      svg.append('line').attr('x1', x(today)).attr('x2', x(today)).attr('y1', 8).attr('y2', H - 26).attr('stroke', css('--rule')).attr('stroke-width', 1.5);
+      svg.append('text').attr('x', x(today) + 5).attr('y', 18).attr('fill', css('--ink-2')).attr('font-size', 12).text('Today');
+    }
+    const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; el.append(tip);
+    const guide = svg.append('line').attr('y1', 8).attr('y2', H - 26).attr('stroke', css('--ink-2')).attr('stroke-dasharray', '2 3').attr('opacity', 0);
+    const xs = [...new Set(lines.filter((l) => !l.at).flatMap((l) => l.points).filter((p) => p[1] != null).map((p) => p[0].getTime()))].sort((a, b) => a - b);
+    const show = (ev) => {
+      const [mx] = d3.pointer(ev, svg.node());
+      const t = xs[Math.max(0, Math.min(xs.length - 1, d3.bisectCenter(xs, x.invert(mx).getTime())))];
+      guide.attr('x1', x(t)).attr('x2', x(t)).attr('opacity', 1);
+      tip.replaceChildren();
+      const past = today && t < today.getTime();
+      const d = document.createElement('div'); d.className = 'tip-date'; d.textContent = `${past ? '' : 'Delivery '}${d3.utcFormat('%B %Y')(new Date(t))} · ${unit}`; tip.append(d);
+      const g = document.createElement('div'); g.className = 'tip-grid';
+      for (const l of lines) {
+        const p = l.at ? [null, l.at(new Date(t))] : l.points.find((q) => q[0].getTime() === t);
+        if (!p || p[1] == null) continue;
+        const n = document.createElement('div'); n.append(swatch(l), l.tipLabel || l.label);
+        const v = document.createElement('div'); v.className = 'v'; v.textContent = fmt(p[1], UNIT_INFO[unit].d);
+        g.append(n, v);
+      }
+      tip.append(g); tip.hidden = false;
+      const px = x(t), tw = tip.offsetWidth;
+      tip.style.left = (px + 14 + tw > W ? Math.max(0, px - tw - 14) : px + 14) + 'px';
+    };
+    svg.append('rect').attr('x', ml).attr('width', W - ml).attr('height', H).attr('fill', 'transparent')
+      .on('pointermove', show).on('pointerdown', show).on('pointerleave', () => { tip.hidden = true; guide.attr('opacity', 0); });
+  }
+
+  function setupCurves(panel, cdata, fxRate, data) {
+    const q = (sel) => panel.querySelector(sel);
+    const conv = converter(fxRate);
+    const list = Object.entries((cdata && cdata.curves) || {}).filter(([, c]) => Object.keys(c.snapshots || {}).length)
+      .map(([key, c]) => ({ key, ...c, dates: Object.keys(c.snapshots).sort() }));
+    if (!list.length) { q('[data-lede]').textContent = 'No forward curves yet - they appear after the next update.'; return () => {}; }
+    const want = params.get('curve');
+    const st = { key: (list.find((c) => c.key === want) || list[0]).key, unit: null, horizon: '36', history: '36',
+                 on: Object.fromEntries([...COMPARE, ...EXTRAS].map((c) => [c.key, c.key === 'latest' || !!c.on])) };
+    const cur = () => list.find((c) => c.key === st.key);
+    const unitSlot = document.createElement('span'), vatSlot = document.createElement('span');
+    function pickUnit() {
+      const units = CURVE_UNITS[cur().group] || [cur().unit];
+      if (!units.includes(st.unit)) st.unit = units[0];
+      unitSlot.replaceChildren(seg('Unit', units.map((u) => [u, u]), st.unit, (v) => { st.unit = v; render(); }));
+      vatSlot.replaceChildren(...(cur().vat ? [vatSeg(() => document.dispatchEvent(new Event('vatchange')))] : []));
+    }
+    document.addEventListener('vatchange', () => { pickUnit(); render(); });
+    q('[data-controls]').append(
+      seg('Benchmark', list.map((c) => [c.key, c.label]), st.key, (v) => { st.key = v; pickUnit(); render(); }),
+      seg('History shown', [['0', 'No history'], ['12', '1 year back'], ['36', '3 years back'], ['60', '5 years back'], ['120', '10 years back']], st.history, (v) => { st.history = v; render(); }),
+      seg('Delivery horizon', [['12', '12 months'], ['36', '3 years'], ['72', '6 years'], ['all', 'All']], st.horizon, (v) => { st.horizon = v; render(); }),
+      unitSlot, vatSlot);
+    for (const c of [...EXTRAS, ...COMPARE]) {
+      const t = document.createElement('button'); t.type = 'button'; t.className = 'toggle'; t.setAttribute('aria-pressed', String(st.on[c.key]));
+      t.append(swatch(c), c.label);
+      t.addEventListener('click', () => { if (c.key === 'latest') return; st.on[c.key] = !st.on[c.key]; t.setAttribute('aria-pressed', String(st.on[c.key])); render(); });
+      q('[data-legend]').append(t);
+    }
+
+    // snapshot date to use for each comparison: the last stored curve on or before the target day
+    function snapshots(c) {
+      const last = c.dates.at(-1), t = toDate(last).getTime();
+      const out = {};
+      for (const cmp of COMPARE) {
+        const target = iso(new Date(t - cmp.days * 86400000));
+        const i = d3.bisectRight(c.dates, target) - 1;
+        const d = i >= 0 ? c.dates[i] : null;
+        if (d && (cmp.key === 'latest' || d !== last)) out[cmp.key] = d;
+      }
+      return out;
+    }
+    const curveIn = (c, date) => {
+      const m = {};
+      for (const [ym, v] of Object.entries(c.snapshots[date])) { const x = conv(vatAdj(c, v), c.unit, st.unit, date); if (x != null) m[ym] = x; }
+      return m;
+    };
+    function stripsOf(c, curve) {
+      const months = Object.keys(c.snapshots[c.dates.at(-1)]);
+      const years = [...new Set(months.map((m) => +m.slice(0, 4)))];
+      const defs = [];
+      for (const y of years) {
+        defs.push({ label: `Cal-${String(y).slice(2)}`, months: d3.range(1, 13).map((m) => `${y}-${String(m).padStart(2, '0')}`) });
+        if (c.group === 'gas') {
+          defs.push({ label: `Summer ${y}`, months: d3.range(4, 10).map((m) => `${y}-${String(m).padStart(2, '0')}`) });
+          defs.push({ label: `Winter ${String(y).slice(2)}/${String(y + 1).slice(2)}`, months: [10, 11, 12].map((m) => `${y}-${m}`).concat([1, 2, 3].map((m) => `${y + 1}-0${m}`)) });
+        }
+      }
+      return defs.map((d) => ({ ...d, value: d.months.every((m) => curve[m] != null) ? d3.mean(d.months, (m) => curve[m]) : null }));
+    }
+    // monthly and yearly averages of the front-month history from the price tabs, in st.unit
+    function history(c) {
+      const h = data && data.series && data.series[c.key];
+      if (!h) return { months: [], years: {} };
+      const byM = new Map(), byY = new Map();
+      for (const [d, v] of Object.entries(h.data)) {
+        const x = conv(vatAdj(h, v), h.unit, st.unit, d);
+        if (x == null) continue;
+        if (!byM.has(d.slice(0, 7))) byM.set(d.slice(0, 7), []);
+        byM.get(d.slice(0, 7)).push(x);
+        if (!byY.has(d.slice(0, 4))) byY.set(d.slice(0, 4), []);
+        byY.get(d.slice(0, 4)).push(x);
+      }
+      return { months: [...byM].map(([m, a]) => [m, d3.mean(a)]).sort((a, b) => d3.ascending(a[0], b[0])),
+               years: Object.fromEntries([...byY].map(([y, a]) => [y, d3.mean(a)])), last: Object.keys(h.data).sort().at(-1) };
+    }
+
+    function render() {
+      const c = cur(), snaps = snapshots(c), U = UNIT_INFO[st.unit];
+      const latestDate = snaps.latest, latest = curveIn(c, latestDate);
+      const firstYm = Object.keys(latest)[0];
+      const maxYm = st.horizon === 'all' ? '9999-12' : iso(d3.utcMonth.offset(ymDate(firstYm), Number(st.horizon) - 1)).slice(0, 7);
+      const curves = Object.fromEntries(Object.entries(snaps).map(([k, d]) => [k, curveIn(c, d)]));
+
+      // lede
+      const L = q('[data-lede]'); L.replaceChildren();
+      const b = (t) => Object.assign(document.createElement('b'), { textContent: t });
+      const yms = Object.keys(latest), m12 = yms.find((m) => m >= iso(d3.utcMonth.offset(ymDate(firstYm), 12)).slice(0, 7));
+      L.append(`${c.label} forward curve on ${dayFmt(toDate(latestDate))}: front month (${ymLabel(firstYm)}) `, b(money(latest[firstYm], st.unit)));
+      if (m12) {
+        const diff = latest[m12] - latest[firstYm];
+        L.append(`, ${ymLabel(m12)} `, b(money(latest[m12], st.unit)), `. ${c.group === 'gas' ? 'Twelve months out, the curve is in' : 'The curve is in'} `,
+          b(diff < 0 ? 'backwardation' : 'contango'), ` (${diff < 0 ? '−' : '+'}${U.pre}${fmt(Math.abs(diff), U.d)}${U.post} over 12 months).`);
+      } else L.append('.');
+
+      // chart
+      const lines = COMPARE.filter((cmp) => st.on[cmp.key] && snaps[cmp.key]).map((cmp) => ({
+        ...cmp, label: cmp.key === 'latest' ? `${d3.utcFormat('%-d %b %Y')(toDate(snaps.latest))}` : `${cmp.label} (${d3.utcFormat('%-d %b %Y')(toDate(snaps[cmp.key]))})`,
+        points: Object.entries(curves[cmp.key]).filter(([ym]) => ym <= maxYm).map(([ym, v]) => [ymDate(ym), v]),
+      }));
+      const H = history(c), today = toDate(latestDate);
+      const histFrom = iso(d3.utcMonth.offset(d3.utcMonth.floor(today), -Number(st.history))).slice(0, 7);
+      const histMonths = st.history === '0' ? [] : H.months.filter(([m]) => m >= histFrom);
+      if (st.on.hist && histMonths.length) {
+        lines.push({ ...EXTRAS[0], noDots: true, tipLabel: 'History (front-month avg)', points: histMonths.map(([m, v]) => [ymDate(m), v]) });
+      }
+      // flat segments: actual yearly average for past years (current year so far), Cal strips ahead
+      const firstHistYear = histMonths.length ? +histMonths[0][0].slice(0, 4) : null;
+      const segs = [];
+      if (firstHistYear) for (const [y, v] of Object.entries(H.years)) {
+        if (+y < firstHistYear || +y > today.getUTCFullYear()) continue;
+        const end = +y === today.getUTCFullYear() ? today : new Date(Date.UTC(+y, 11, 31));
+        segs.push({ from: d3.max([new Date(Date.UTC(+y, 0, 1)), ymDate(histMonths[0][0])]), to: end, v, label: +y === today.getUTCFullYear() ? `${y} so far (actual)` : `${y} (actual)` });
+      }
+      for (const r of stripsOf(c, latest)) {
+        if (!r.label.startsWith('Cal') || r.value == null || r.months[11] > maxYm) continue;
+        segs.push({ from: ymDate(r.months[0]), to: new Date(Date.UTC(+r.months[0].slice(0, 4), 11, 31)), v: r.value, label: `${r.label} strip` });
+      }
+      if (st.on.strips && segs.length) {
+        lines.push({ ...EXTRAS[1], noDots: true, tipLabel: 'Year average / strip',
+          points: segs.flatMap((sg) => [[sg.from, sg.v], [sg.to, sg.v], [sg.to, null]]),
+          at: (t) => { const sg = segs.find((g) => t >= g.from && t <= g.to); return sg ? sg.v : null; } });
+      }
+      if (!panel.hidden) curveChart(q('[data-chart]'), { lines, unit: st.unit, label: `${c.label} forward curve in ${st.unit}`, today: st.history === '0' ? null : today });
+      const ytd = H.years[String(today.getUTCFullYear())], nextCal = stripsOf(c, latest).find((r) => r.label === `Cal-${String(today.getUTCFullYear() + 1).slice(2)}` && r.value != null);
+      if (ytd != null && nextCal) {
+        const pc = (nextCal.value / ytd - 1) * 100;
+        L.append(` The ${nextCal.label} strip (`, b(money(nextCal.value, st.unit)), `) is ${fmt(Math.abs(pc), 1)}% ${pc < 0 ? 'below' : 'above'} the ${today.getUTCFullYear()} average so far (${money(ytd, st.unit)}).`);
+      }
+
+      // strips
+      const cols = COMPARE.filter((cmp) => snaps[cmp.key]);
+      const stripRows = stripsOf(c, latest).filter((r) => r.value != null);
+      const old = Object.fromEntries(cols.map((cmp) => [cmp.key, Object.fromEntries(stripsOf(c, curves[cmp.key]).map((r) => [r.label, r.value]))]));
+      simpleTable(q('[data-strips]'), ['Strip', ...cols.map((cmp) => cmp.key === 'latest' ? 'Latest' : cmp.label)],
+        stripRows.map((r) => [r.label, ...cols.map((cmp) => fmt(old[cmp.key][r.label], U.d))]));
+      q('[data-strips-sub]').textContent = stripRows.length
+        ? `Average of the monthly contracts in ${st.unit}. Earlier columns use the curve stored on or before that day. Cal = calendar year${c.group === 'gas' ? '; summer = April–September, winter = October–March' : ''}.`
+        : 'No complete strip: Yahoo Finance does not list every month of this curve.';
+
+      // contract table: latest price and change against each comparison curve
+      const diffCell = (a, b) => { const sp = document.createElement('span'); if (a == null || b == null) { sp.textContent = '—'; return sp; } const d = a - b; sp.textContent = (d > 0 ? '+' : d < 0 ? '−' : '') + fmt(Math.abs(d), U.d); sp.className = d > 0 ? 'up' : d < 0 ? 'down' : ''; return sp; };
+      const rows = Object.entries(latest).filter(([ym]) => ym <= maxYm).map(([ym, v]) => [ymLabel(ym), fmt(v, U.d), ...cols.slice(1).map((cmp) => diffCell(v, curves[cmp.key][ym]))]);
+      simpleTable(q('[data-contracts]'), ['Delivery month', 'Latest', ...cols.slice(1).map((cmp) => `vs ${cmp.label}`)], rows);
+      q('[data-contracts-sub]').textContent = `${c.desc}. Settlement prices in ${st.unit}; changes are against the curve stored on or before each earlier day.`;
+    }
+    pickUnit(); render();
+    return render;
+  }
+
+  // ---------- tabs and loading ----------
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  const draws = {};
+  function selectTab(tab, focus) {
+    tabs.forEach((t) => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+    const key = tab.id.replace('tab-', '');
+    history.replaceState(null, '', key === 'oil' ? location.pathname + location.search : '#' + key);
+    draws[key] && draws[key]();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t));
+    t.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); selectTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length], true); }
+    });
+  });
+  const redrawAll = () => Object.values(draws).forEach((f) => f());
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(redrawAll, 150); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+
+  const getJson = (url) => fetch(url, { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+  // Coal is fetched with the metals (scripts/update_metals.py), so it comes from metals.json
+  const coalOnly = (m) => Object.fromEntries(Object.entries(m || {}).filter(([, s]) => s.group === 'coal'));
+  Promise.all([getJson('../data/oil_gas.json'), getJson('../data/oil_gas_curves.json').catch(() => null),
+               getJson('../data/metals.json').catch(() => null), getJson('../data/metals_curves.json').catch(() => null)])
+    .then(([data, curves, metals, mcurves]) => {
+      if (metals) { Object.assign(data.series, coalOnly(metals.series)); data.fx = { ...data.fx, ...(metals.fx?.CNYUSD ? { CNYUSD: metals.fx.CNYUSD } : {}) }; }
+      if (mcurves) curves = { ...(curves || {}), curves: { ...(curves?.curves || {}), ...coalOnly(mcurves.curves) } };
+      const fxRate = makeFx(data.fx);
+      for (const p of document.querySelectorAll('.panel[data-group]')) draws[p.dataset.group] = setupPanel(p, data, fxRate);
+      draws.curves = setupCurves(document.getElementById('panel-curves'), curves, fxRate, data);
+      document.getElementById('updated').textContent = `Data last updated ${d3.utcFormat('%-d %b %Y, %H:%M UTC')(new Date(data.updated))}.`;
+      const want = params.get('tab') || location.hash.slice(1);
+      selectTab(tabs.find((t) => t.id === 'tab-' + want) || tabs[0]);
+    })
+    .catch((e) => { document.querySelectorAll('.panel').forEach((p) => { p.textContent = `The price data could not be loaded (${e.message}).`; }); });
+})();
+</script>
+<script>
+// keep ?view=compact / ?theme=… when switching commodity
+(() => { const q = location.search; if (q) document.querySelectorAll('.cnav a').forEach((a) => { const [p, h] = a.getAttribute('href').split('#'); a.href = p + q + (h ? '#' + h : ''); }); })();
+// on narrow screens, scroll the open sub-tab into view
+(() => {
+  const bar = document.querySelector('.tabs'); if (!bar) return;
+  const show = () => { const t = bar.querySelector('[aria-selected=true]'); if (t) bar.scrollLeft = t.offsetLeft - bar.offsetLeft - 16; };
+  bar.addEventListener('click', show); addEventListener('load', show); setTimeout(show, 0);
+})();
+</script>
+</body>
+</html>
