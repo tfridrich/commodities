@@ -16,6 +16,7 @@ Sources (no API keys needed; both answer requests from GitHub Actions, Yahoo Fin
                    HC0     CNY/t     SHFE hot-rolled coil, main contract, incl. 13% VAT
         Iron ore   I0      CNY/t     DCE iron ore 62% Fe fines, main contract
         Lithium    LC0     CNY/t     GFEX battery-grade lithium carbonate, main contract
+                   LI0     CNY/t     GFEX battery-grade lithium hydroxide, main contract (since 26 Nov 2026)
     and their forward curves from the individual contract months (CU2701, AL2701, I2705, LC2707, ...).
     Chinese futures prices include 13% VAT; the page can show them with or without it.
   - IMF Primary Commodity Prices via FRED (CSV, no key): monthly averages of the LME prices
@@ -99,6 +100,10 @@ SERIES = [
          desc="Dalian Commodity Exchange iron ore 62% Fe fines, main contract, settlement price per wet tonne at port, incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", id="LC0", vat=CN_VAT,
          desc="Guangzhou Futures Exchange battery-grade lithium carbonate (99.5% Li2CO3), main contract, settlement price incl. 13% VAT"),
+    # listed 26 Nov 2026; the first contracts deliver June-November 2027
+    dict(key="gfex_li", group="lithium", label="GFEX lithium hydroxide", unit="CNY/t", source="sina", id="LI0", vat=CN_VAT,
+         expect=(10000, 1000000),
+         desc="Guangzhou Futures Exchange battery-grade lithium hydroxide, main contract, settlement price incl. 13% VAT"),
     # Coal is shown on the Fuels page (docs/oil-gas/), which reads group "coal" from metals.json
     dict(key="coal_au", group="coal", label="Thermal coal Australia (IMF monthly)", unit="USD/t", source="fred",
          id="PCOALAUUSDM", freq="monthly", expect=(20, 1000),
@@ -136,6 +141,9 @@ CURVES = [
          monthly=13, dec_years=0, desc="DCE iron ore futures (I), settlement prices incl. 13% VAT"),
     dict(key="gfex", group="lithium", label="GFEX lithium carbonate", unit="CNY/t", source="sina", root="LC", vat=CN_VAT,
          monthly=13, dec_years=0, desc="GFEX lithium carbonate futures (LC), settlement prices incl. 13% VAT"),
+    dict(key="gfex_li", group="lithium", label="GFEX lithium hydroxide", unit="CNY/t", source="sina", root="LI", vat=CN_VAT,
+         expect=(10000, 1000000), monthly=13, dec_years=0,
+         desc="GFEX lithium hydroxide futures (LI), settlement prices incl. 13% VAT"),
     dict(key="dce_jm", group="coal", label="DCE coking coal", unit="CNY/t", source="sina", root="JM", vat=CN_VAT,
          expect=(300, 6000), monthly=13, dec_years=0, desc="DCE coking coal futures (JM), settlement prices incl. 13% VAT"),
     dict(key="dce_j", group="coal", label="DCE coke", unit="CNY/t", source="sina", root="J", vat=CN_VAT,
