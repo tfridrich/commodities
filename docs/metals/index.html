@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metals prices · copper, aluminium, iron ore, steel, lithium carbonate, gold, silver · Commodities</title>
-<meta name="description" content="Daily COMEX and SHFE copper, SHFE aluminium, monthly LME copper and aluminium averages, SGX and DCE iron ore, COMEX and SHFE gold and silver and GFEX lithium carbonate futures prices with forward curves, updated automatically every trading day.">
+<title>Metals prices · copper, aluminium, iron ore, steel, lithium, gold, silver · Commodities</title>
+<meta name="description" content="Daily COMEX and SHFE copper, SHFE aluminium, monthly LME copper and aluminium averages, SGX and DCE iron ore, COMEX and SHFE gold and silver and GFEX lithium carbonate and lithium hydroxide futures prices with forward curves, updated automatically every trading day.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap" rel="stylesheet">
@@ -126,7 +126,7 @@ footer a { color: inherit; }
       <button type="button" role="tab" id="tab-aluminium" aria-controls="panel-aluminium" aria-selected="false" tabindex="-1">Aluminium</button>
       <button type="button" role="tab" id="tab-iron" aria-controls="panel-iron" aria-selected="false" tabindex="-1">Iron ore</button>
       <button type="button" role="tab" id="tab-steel" aria-controls="panel-steel" aria-selected="false" tabindex="-1">Steel</button>
-      <button type="button" role="tab" id="tab-lithium" aria-controls="panel-lithium" aria-selected="false" tabindex="-1">Lithium carbonate</button>
+      <button type="button" role="tab" id="tab-lithium" aria-controls="panel-lithium" aria-selected="false" tabindex="-1">Lithium</button>
       <button type="button" role="tab" id="tab-gold" aria-controls="panel-gold" aria-selected="false" tabindex="-1">Gold</button>
       <button type="button" role="tab" id="tab-silver" aria-controls="panel-silver" aria-selected="false" tabindex="-1">Silver</button>
       <button type="button" role="tab" id="tab-curves" aria-controls="panel-curves" aria-selected="false" tabindex="-1">Forward curves</button>
@@ -195,6 +195,7 @@ footer a { color: inherit; }
     <li>Prices on the Chinese exchanges (SHFE, DCE, GFEX) include 13% VAT (except SHFE gold) and are for delivery in China. Use "excl. VAT" to compare them with the US-listed contracts and the LME. Even without VAT, SHFE copper and COMEX copper differ by import costs and regional premiums, and DCE iron ore is priced per wet tonne at a Chinese port while the SGX contract is per dry tonne delivered (CFR) to China (moisture is typically 8–10%).</li>
     <li>Daily LME prices are licensed and may not be republished, so the LME appears as the IMF's monthly averages of the LME spot price (copper grade A cathode; aluminium 99.5% minimum purity). The IMF publishes them one to two months after the month ends. On the daily and weekly views each month's average is drawn as a flat step. SHFE aluminium is the daily settlement price of the Shanghai main contract (Al 99.70%). There is no free source for the CME aluminium contracts that can be read automatically, and they trade thinly.</li>
     <li>There is no free daily source for lithium prices outside China: the CME and SGX lithium contracts settle against Fastmarkets assessments, which are licensed, and they trade too rarely to give a daily series. GFEX lithium carbonate is the reference contract for China, the largest market.</li>
+    <li>Lithium hydroxide is the feedstock for high-nickel (NMC/NCA) cathodes; LFP cathodes, used in most stationary batteries, are made from lithium carbonate. GFEX started trading lithium hydroxide futures on 26 November 2026, so its history begins then. The first contracts deliver from June to November 2027, so its main contract is several months further out than lithium carbonate's, and the hydroxide – carbonate spread also contains that difference in delivery date.</li>
     <li>Unit conversion: 1 t = 1,000 kg = 2,204.62 lb; 1 troy ounce = 31.1035 g. Currencies are converted with the ECB euro reference rates (USD and CNY per EUR) of the same day, or the latest day before it.</li>
     <li>Forward curves are the daily settlement prices of each contract month. They are available for the Chinese exchanges, which list twelve consecutive months; there is no free source for the COMEX and SGX contract months that can be read automatically. Gaps in a curve are bridged with a straight line; strips are shown only when every month in them has a price. The dotted history line is the monthly average of the exchange's price on the metal's own tab.</li>
   </ul>
@@ -221,11 +222,12 @@ footer a { color: inherit; }
     shfe_rb: { color: '--s2' }, shfe_hc: { color: '--s1' },
     comex_au: { color: '--s1' }, shfe_au: { color: '--s2' }, comex_ag: { color: '--s1' }, shfe_ag: { color: '--s2' },
     sgx: { color: '--s1' }, dce: { color: '--s2' },
-    gfex: { color: '--s3' },
+    gfex: { color: '--s3' }, gfex_li: { color: '--s1' },
   };
   const SPREADS = {
     copper: [{ key: 'shfe_comex', label: 'SHFE – COMEX', a: 'shfe', b: 'comex', color: '--s4' }],
     gold: [{ key: 'shfe_comex_au', label: 'SHFE – COMEX (Shanghai premium)', a: 'shfe_au', b: 'comex_au', color: '--s4' }],
+    lithium: [{ key: 'li_lc', label: 'Hydroxide – carbonate', a: 'gfex_li', b: 'gfex', color: '--s4' }],
     silver: [{ key: 'shfe_comex_ag', label: 'SHFE – COMEX (Shanghai premium)', a: 'shfe_ag', b: 'comex_ag', color: '--s4' }],
   };
   // Units: currency and the quantity of one unit in tonnes
